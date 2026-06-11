@@ -119,7 +119,10 @@ export function Dashboard({ authUser }: { authUser: User }) {
         </h3>
         <div className="space-y-3">
           {[
-            { label: "Тактическая подготовка", pct: 75 },
+            {
+              label: "Отработка Штраф Задержание Арестна инструкторе.",
+              pct: 75,
+            },
             { label: "Огневая подготовка", pct: 60 },
             { label: "Физическая подготовка", pct: 90 },
             { label: "Военная история", pct: 45 },
