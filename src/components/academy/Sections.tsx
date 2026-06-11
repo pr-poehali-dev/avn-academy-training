@@ -218,19 +218,18 @@ export function Lectures() {
       />
       <div className="bg-tactical-card border border-tactical-border p-4">
         <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
-          Новый запрос на практику
+          Новый запрос на лекцию
         </h3>
         <div className="grid md:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="rank-badge text-muted-foreground block mb-1">
-              Вид практики
+              Вид лекции
             </label>
             <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
-              <option>Отработка Штраф Задержание Ареста на инструкторе.</option>
-              <option>Огневая подготовка</option>
-              <option>Физическая подготовка</option>
-              <option>Строевая подготовка</option>
-              <option>Присяга</option>
+              <option>Прослушать вступительную лекцию.</option>
+              <option>Прослушать лекцию по ФЗ о ФСВНГ и уставу ФСВНГ</option>
+              <option>Лекция УК ПК КоАП</option>
+              <option>Лекция О ФЗ закрытых территорий</option>
             </select>
           </div>
           <div>
