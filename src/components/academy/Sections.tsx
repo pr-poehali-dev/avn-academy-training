@@ -293,7 +293,7 @@ export function Practices() {
               Вид практики
             </label>
             <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
-              <option>Тактические учения</option>
+              <option>Отработка Штраф Задержание Ареста на инструкторе.</option>
               <option>Огневая подготовка</option>
               <option>Физическая подготовка</option>
               <option>Топография</option>
