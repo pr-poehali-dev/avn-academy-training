@@ -19,10 +19,12 @@ export function AppHeader({ role, sidebarOpen, onToggleSidebar, onRoleChange }: 
           >
             <Icon name="Menu" size={20} />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-primary/20 border border-primary/40 flex items-center justify-center">
-              <Icon name="Shield" size={14} className="text-primary" />
-            </div>
+          <div className="flex items-center gap-3">
+            <img
+              src="https://cdn.poehali.dev/projects/84dc1cae-34e0-44b0-9785-f7d10f314ae9/files/41dd6dcd-ca3d-4d2c-a29f-b653ac515b0e.jpg"
+              alt="Эмблема АВНГ"
+              className="w-10 h-10 object-contain rounded-full border border-primary/30 bg-tactical-card"
+            />
             <div>
               <h1 className="font-oswald text-base font-semibold tracking-widest uppercase text-foreground leading-none">
                 АКАДЕМИЯ АВНГ
@@ -83,7 +85,16 @@ export function AppSidebar({ section, role, sidebarOpen, onNavigate, onClose }: 
         top-14 md:top-auto bottom-0
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
       `}>
-        <nav className="p-2 space-y-0.5 pt-4">
+        <div className="flex flex-col items-center py-5 border-b border-tactical-border mb-2">
+          <img
+            src="https://cdn.poehali.dev/projects/84dc1cae-34e0-44b0-9785-f7d10f314ae9/files/41dd6dcd-ca3d-4d2c-a29f-b653ac515b0e.jpg"
+            alt="Эмблема АВНГ"
+            className="w-16 h-16 object-contain rounded-full border border-primary/40 bg-tactical-card shadow-lg"
+            style={{ boxShadow: '0 0 16px rgba(160,30,45,0.25)' }}
+          />
+          <p className="font-oswald text-xs tracking-[0.2em] uppercase text-primary mt-2">АКАДЕМИЯ АВНГ</p>
+        </div>
+        <nav className="p-2 space-y-0.5">
           {visibleNav.map((item) => (
             <button
               key={item.id}
