@@ -201,7 +201,7 @@ export function Practices() {
         <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">Расписание практик</h3>
         {[
           { title: "
-Отработка Штраф Задержание Ареста на инструкторе", date: "22.06.2024", time: "09:00–13:00", location: "Полигон №3", status: "approved" },
+            Отработка Штраф Задержание Ареста на инструкторе", date: "22.06.2024", time: "09:00–13:00", location: "Полигон №3", status: "approved" },
           { title: "Огневая подготовка — стрельбище", date: "25.06.2024", time: "14:00–17:00", location: "Тир №1", status: "pending" },
           { title: "Ориентирование на местности", date: "28.06.2024", time: "08:00–12:00", location: "Учебный лес", status: "pending" },
         ].map((p, i) => (
