@@ -1,4 +1,5 @@
 {
+  "requests": "https://functions.poehali.dev/737b0f42-c3de-4eb2-b632-1a02ff20f43c",
   "admin-users": "https://functions.poehali.dev/11facde9-3268-42cd-b599-f4eb9ff2ad36",
   "auth": "https://functions.poehali.dev/eef502e8-b5b4-49f1-9aca-68ce6729a515"
 }

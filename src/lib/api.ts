@@ -1,5 +1,6 @@
 const AUTH_URL = "https://functions.poehali.dev/eef502e8-b5b4-49f1-9aca-68ce6729a515";
 const ADMIN_URL = "https://functions.poehali.dev/11facde9-3268-42cd-b599-f4eb9ff2ad36";
+const REQUESTS_URL = "https://functions.poehali.dev/737b0f42-c3de-4eb2-b632-1a02ff20f43c";
 
 export function getToken(): string | null {
   return localStorage.getItem("avng_token");
@@ -116,4 +117,98 @@ export interface User {
 export interface AdminUser extends User {
   is_whitelisted: boolean;
   created_at: string;
+}
+
+export type RequestType = "lecture" | "practice" | "exam" | "report";
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export interface TrainingRequest {
+  id: number;
+  type: RequestType;
+  subject: string;
+  description: string | null;
+  preferred_date: string | null;
+  status: RequestStatus;
+  instructor_comment: string | null;
+  created_at: string;
+  updated_at: string;
+  cadet_name: string;
+  cadet_rank: string;
+  cadet_static_id: string;
+  cadet_id: number;
+  reviewer_name: string | null;
+}
+
+export interface Grade {
+  id: number;
+  subject: string;
+  type: "lecture" | "practice" | "exam";
+  grade: number;
+  comment: string | null;
+  graded_at: string;
+  cadet_name: string;
+  cadet_rank: string;
+  cadet_id: number;
+  instructor_name: string;
+}
+
+// ===== Requests API =====
+
+export async function fetchRequests(): Promise<TrainingRequest[]> {
+  const res = await fetch(REQUESTS_URL, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data.requests;
+}
+
+export async function createRequest(payload: {
+  type: RequestType;
+  subject: string;
+  description?: string;
+  preferred_date?: string;
+}) {
+  const res = await fetch(REQUESTS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function reviewRequest(id: number, status: "approved" | "rejected", comment?: string) {
+  const res = await fetch(`${REQUESTS_URL}?action=review&id=${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ status, comment }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function fetchGrades(): Promise<Grade[]> {
+  const res = await fetch(`${REQUESTS_URL}?action=grades`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data.grades;
+}
+
+export async function createGrade(payload: {
+  cadet_id: number;
+  subject: string;
+  type: "lecture" | "practice" | "exam";
+  grade: number;
+  comment?: string;
+  request_id?: number;
+}) {
+  const res = await fetch(`${REQUESTS_URL}?action=grade`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
 }

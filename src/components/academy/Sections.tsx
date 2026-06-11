@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import {
   StatusBadge,
@@ -8,14 +8,195 @@ import {
 } from "./UIComponents";
 import { User } from "@/lib/api";
 import {
-  MOCK_LECTURES,
-  MOCK_REPORTS,
-  MOCK_GRADES,
-  MOCK_INSTRUCTOR_REQUESTS,
-  MOCK_MATERIALS,
-} from "./types";
+  fetchRequests,
+  createRequest,
+  reviewRequest,
+  fetchGrades,
+  createGrade,
+  TrainingRequest,
+  Grade,
+} from "@/lib/api";
+import { MOCK_MATERIALS } from "./types";
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const TYPE_LABEL: Record<string, string> = {
+  lecture: "Лекция",
+  practice: "Практика",
+  exam: "Экзамен",
+  report: "Рапорт",
+};
+
+function fmt(iso: string) {
+  return new Date(iso).toLocaleDateString("ru-RU");
+}
+
+function avg(grades: Grade[]) {
+  if (!grades.length) return "—";
+  return (grades.reduce((s, g) => s + g.grade, 0) / grades.length).toFixed(1);
+}
+
+// ─── shared request list card ─────────────────────────────────────────────────
+function RequestCard({
+  r,
+  icon,
+}: {
+  r: TrainingRequest;
+  icon: string;
+}) {
+  return (
+    <div className="bg-tactical-card border border-tactical-border p-4 hover:border-primary/30 transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Icon name={icon} fallback="FileText" size={14} className="text-primary" />
+          </div>
+          <div>
+            <h4 className="font-ibm text-sm font-medium text-foreground">{r.subject}</h4>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">
+              {TYPE_LABEL[r.type]} · {fmt(r.created_at)}
+              {r.preferred_date && ` · Дата: ${fmt(r.preferred_date)}`}
+            </p>
+            {r.instructor_comment && (
+              <p className="text-xs text-muted-foreground mt-1 italic">"{r.instructor_comment}"</p>
+            )}
+          </div>
+        </div>
+        <StatusBadge status={r.status} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Loading / Empty states ───────────────────────────────────────────────────
+function Spinner() {
+  return (
+    <div className="flex justify-center py-10">
+      <Icon name="Loader2" size={24} className="text-primary animate-spin" />
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+      <Icon name="Inbox" size={28} className="mb-2 opacity-40" />
+      <p className="text-sm font-mono">{text}</p>
+    </div>
+  );
+}
+
+// ─── REQUEST FORM ─────────────────────────────────────────────────────────────
+function RequestForm({
+  type,
+  subjectOptions,
+  onSubmit,
+  onClose,
+}: {
+  type: "lecture" | "practice" | "exam" | "report";
+  subjectOptions: string[];
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  const [subject, setSubject] = useState(subjectOptions[0] || "");
+  const [description, setDescription] = useState("");
+  const [date, setDate] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await createRequest({ type, subject, description, preferred_date: date || undefined });
+      onSubmit();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ошибка отправки");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-tactical-card border border-primary/40 p-4 animate-fade-in space-y-3">
+      <h3 className="font-oswald text-sm tracking-widest uppercase text-primary">
+        Новый запрос — {TYPE_LABEL[type]}
+      </h3>
+      <div className="grid md:grid-cols-2 gap-3">
+        <div>
+          <label className="rank-badge text-muted-foreground block mb-1">Тема</label>
+          <select
+            className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          >
+            {subjectOptions.map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="rank-badge text-muted-foreground block mb-1">Предпочтительная дата</label>
+          <input
+            type="date"
+            className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="rank-badge text-muted-foreground block mb-1">Пояснение (необязательно)</label>
+        <textarea
+          className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors resize-none"
+          rows={2}
+          placeholder="Опишите цель..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      {error && (
+        <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
+          <Icon name="AlertTriangle" size={13} className="text-red-400" />
+          <p className="text-xs text-red-400">{error}</p>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {loading ? "Отправка..." : "Отправить"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors"
+        >
+          Отмена
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
 export function Dashboard({ authUser }: { authUser: User }) {
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [grades, setGrades] = useState<Grade[]>([]);
+
+  useEffect(() => {
+    fetchRequests().then(setRequests).catch(() => {});
+    fetchGrades().then(setGrades).catch(() => {});
+  }, []);
+
+  const myGrades = grades.filter((g) => g.cadet_id === authUser.id);
+  const avgGrade = myGrades.length
+    ? (myGrades.reduce((s, g) => s + g.grade, 0) / myGrades.length).toFixed(1)
+    : "—";
+  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const recent = requests.slice(0, 3);
+
   return (
     <div className="animate-fade-in space-y-6">
       <SectionHeader
@@ -23,182 +204,79 @@ export function Dashboard({ authUser }: { authUser: User }) {
         sub={`Добро пожаловать, ${authUser.name}`}
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          label="Средний балл"
-          value={4.3}
-          icon="Star"
-          accent="text-gold"
-        />
-        <StatCard
-          label="Пройдено тем"
-          value="12/20"
-          icon="CheckSquare"
-          accent="text-green-400"
-        />
-        <StatCard
-          label="Активных рапортов"
-          value={2}
-          icon="FileText"
-          accent="text-yellow-400"
-        />
-        <StatCard
-          label="До экзамена"
-          value="5 дн."
-          icon="Clock"
-          accent="text-primary"
-        />
+        <StatCard label="Средний балл" value={avgGrade} icon="Star" accent="text-gold" />
+        <StatCard label="Всего оценок" value={myGrades.length} icon="CheckSquare" accent="text-green-400" />
+        <StatCard label="Активных запросов" value={pendingCount} icon="FileText" accent="text-yellow-400" />
+        <StatCard label="До экзамена" value="5 дн." icon="Clock" accent="text-primary" />
       </div>
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-tactical-card border border-tactical-border p-4">
-          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-            Личные данные
-          </h3>
+          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">Личные данные</h3>
           <div className="space-y-2">
             {[
               { label: "Звание", value: authUser.rank || "—" },
               { label: "Подразделение", value: authUser.unit || "—" },
               { label: "Static ID", value: authUser.static_id },
             ].map((item) => (
-              <div
-                key={item.label}
-                className="flex justify-between items-center py-1.5 border-b border-tactical-border last:border-0"
-              >
-                <span className="text-muted-foreground text-xs uppercase tracking-wider font-mono">
-                  {item.label}
-                </span>
-                <span className="text-foreground text-sm font-ibm">
-                  {item.value}
-                </span>
+              <div key={item.label} className="flex justify-between items-center py-1.5 border-b border-tactical-border last:border-0">
+                <span className="text-muted-foreground text-xs uppercase tracking-wider font-mono">{item.label}</span>
+                <span className="text-foreground text-sm font-ibm">{item.value}</span>
               </div>
             ))}
           </div>
         </div>
         <div className="bg-tactical-card border border-tactical-border p-4">
-          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-            Последние уведомления
-          </h3>
-          <div className="space-y-2">
-            {[
-              {
-                text: "Запрос на лекцию одобрен",
-                time: "2 ч. назад",
-                type: "approved",
-              },
-              {
-                text: "Рапорт на повышение на рассмотрении",
-                time: "1 день назад",
-                type: "pending",
-              },
-              {
-                text: "Результат экзамена: Огневая подготовка — 5",
-                time: "3 дня назад",
-                type: "approved",
-              },
-            ].map((n, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 py-1.5 border-b border-tactical-border last:border-0"
-              >
-                <div
-                  className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${n.type === "approved" ? "bg-green-400" : "bg-yellow-400"}`}
-                />
-                <div>
-                  <p className="text-sm text-foreground">{n.text}</p>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    {n.time}
-                  </p>
+          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">Последние запросы</h3>
+          {recent.length === 0 ? (
+            <Empty text="Нет запросов" />
+          ) : (
+            <div className="space-y-2">
+              {recent.map((r) => (
+                <div key={r.id} className="flex items-start gap-3 py-1.5 border-b border-tactical-border last:border-0">
+                  <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${r.status === "approved" ? "bg-green-400" : r.status === "rejected" ? "bg-red-400" : "bg-yellow-400"}`} />
+                  <div>
+                    <p className="text-sm text-foreground">{r.subject}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{TYPE_LABEL[r.type]} · {fmt(r.created_at)}</p>
+                  </div>
+                  <div className="ml-auto"><StatusBadge status={r.status} /></div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-          Прогресс обучения
-        </h3>
-        <div className="space-y-3">
-          {[
-            {
-              label: "Отработка Штраф Задержание Арестна инструкторе.",
-              pct: 75,
-            },
-            { label: "Огневая подготовка", pct: 60 },
-            { label: "Физическая подготовка", pct: 90 },
-            { label: "Военная история", pct: 45 },
-          ].map((item) => (
-            <div key={item.label}>
-              <div className="flex justify-between mb-1">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider">
-                  {item.label}
-                </span>
-                <span className="text-xs text-primary font-mono">
-                  {item.pct}%
-                </span>
-              </div>
-              <div className="h-1.5 bg-tactical-border overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-700"
-                  style={{ width: `${item.pct}%` }}
-                />
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MATERIALS
+// ═══════════════════════════════════════════════════════════════════════════════
 export function Materials() {
   return (
     <div className="animate-fade-in space-y-6">
-      <SectionHeader
-        title="Обучающие материалы"
-        sub="Учебная библиотека академии АВНГ"
-      />
+      <SectionHeader title="Обучающие материалы" sub="Учебная библиотека академии АВНГ" />
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {MOCK_MATERIALS.map((m) => (
-          <div
-            key={m.id}
-            className="corner-mark bg-tactical-card border border-tactical-border p-4 card-glow hover:border-primary/40 transition-colors group"
-          >
+          <div key={m.id} className="corner-mark bg-tactical-card border border-tactical-border p-4 card-glow hover:border-primary/40 transition-colors group">
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-                <Icon
-                  name={m.icon}
-                  fallback="BookOpen"
-                  size={18}
-                  className="text-primary"
-                />
+                <Icon name={m.icon} fallback="BookOpen" size={18} className="text-primary" />
               </div>
               <div>
-                <h4 className="font-oswald text-base font-medium text-foreground leading-tight">
-                  {m.title}
-                </h4>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {m.category}
-                </p>
+                <h4 className="font-oswald text-base font-medium text-foreground leading-tight">{m.title}</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">{m.category}</p>
               </div>
             </div>
             <div className="flex justify-between items-center border-t border-tactical-border pt-3">
-              <span className="rank-badge text-muted-foreground">
-                {m.pages ? `${m.pages} стр.` : "Презентация"}
-              </span>
+              <span className="rank-badge text-muted-foreground">{m.pages ? `${m.pages} стр.` : "Презентация"}</span>
               {m.url ? (
-                <a
-                  href={m.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rank-badge text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="ExternalLink" size={12} />
-                  Открыть
+                <a href={m.url} target="_blank" rel="noopener noreferrer" className="rank-badge text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
+                  <Icon name="ExternalLink" size={12} />Открыть
                 </a>
               ) : (
                 <button className="rank-badge text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
-                  <Icon name="Download" size={12} />
-                  Скачать
+                  <Icon name="Download" size={12} />Скачать
                 </button>
               )}
             </div>
@@ -209,726 +287,500 @@ export function Materials() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// LECTURES
+// ═══════════════════════════════════════════════════════════════════════════════
 export function Lectures() {
-  return (
-    <div className="animate-fade-in space-y-6">
-      <SectionHeader title="Лекции" sub="Запросы на прохождение лекций " />
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
-          Новый запрос на лекцию
-        </h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Вид лекции
-            </label>
-            <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
-              <option>Прослушать вступительную лекцию.</option>
-              <option>Прослушать лекцию по ФЗ о ФСВНГ и уставу ФСВНГ</option>
-              <option>Лекция УК ПК КоАП</option>
-              <option>Лекция О ФЗ закрытых территорий</option>
-            </select>
-          </div>
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Предпочтительная дата
-            </label>
-            <input
-              type="date"
-              className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-            />
-          </div>
-        </div>
-        <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
-          Отправить запрос
-        </button>
-      </div>
-      <div className="space-y-2">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-          Мои запросы
-        </h3>
-        {MOCK_LECTURES.map((l) => (
-          <div
-            key={l.id}
-            className="bg-tactical-card border border-tactical-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Icon name="GraduationCap" size={14} className="text-primary" />
-              </div>
-              <div>
-                <h4 className="font-ibm text-sm font-medium text-foreground">
-                  {l.title}
-                </h4>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  {l.instructor} · {l.date}
-                </p>
-              </div>
-            </div>
-            <StatusBadge status={l.status} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function Practices() {
-  return (
-    <div className="animate-fade-in space-y-6">
-      <SectionHeader
-        title="Практики"
-        sub="Запросы на прохождение практических занятий"
-      />
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
-          Новый запрос на практику
-        </h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Вид практики
-            </label>
-            <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
-              <option>Отработка Штраф Задержание Ареста на инструкторе.</option>
-              <option>Огневая подготовка</option>
-              <option>Физическая подготовка</option>
-              <option>Строевая подготовка</option>
-              <option>Присяга</option>
-            </select>
-          </div>
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Предпочтительная дата
-            </label>
-            <input
-              type="date"
-              className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-            />
-          </div>
-        </div>
-        <div className="mb-3">
-          <label className="rank-badge text-muted-foreground block mb-1">
-            Цель практики
-          </label>
-          <textarea
-            className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors resize-none"
-            rows={2}
-            placeholder="Опишите цель и ожидаемый результат..."
-          />
-        </div>
-        <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
-          Отправить запрос
-        </button>
-      </div>
-      <div className="space-y-2">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-          Расписание практик
-        </h3>
-        {[
-          {
-            title: "Отработка Штраф Задержание Ареста на инструкторе",
-            date: "22.06.2024",
-            time: "09:00–13:00",
-            location: "Полигон №3",
-            status: "approved",
-          },
-          {
-            title: "Огневая подготовка — стрельбище",
-            date: "25.06.2024",
-            time: "14:00–17:00",
-            location: "Тир №1",
-            status: "pending",
-          },
-          {
-            title: "Физическая подготовка — полигон",
-            date: "28.06.2024",
-            time: "08:00–12:00",
-            location: "Учебный лес",
-            status: "pending",
-          },
-          {
-            title: "Физическая подготовка — полигон",
-            date: "28.06.2024",
-            time: "08:00–12:00",
-            location: "Учебный лес",
-            status: "pending",
-          },
-          {
-            title: "Физическая подготовка — полигон",
-            date: "28.06.2024",
-            time: "08:00–12:00",
-            location: "Учебный лес",
-            status: "pending",
-          },
-        ].map((p, i) => (
-          <div
-            key={i}
-            className="bg-tactical-card border border-tactical-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Icon name="Wrench" size={14} className="text-primary" />
-              </div>
-              <div>
-                <h4 className="font-ibm text-sm font-medium text-foreground">
-                  {p.title}
-                </h4>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  {p.date} · {p.time} · {p.location}
-                </p>
-              </div>
-            </div>
-            <StatusBadge status={p.status} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function Exams() {
-  return (
-    <div className="animate-fade-in space-y-6">
-      <SectionHeader title="Экзамен" sub="Запросы на прохождение экзаменов" />
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
-          Новый запрос на экзамен
-        </h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Вид экзамена
-            </label>
-            <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
-              <option>
-                Экзамен теоретические тесты — Устав ФСВНГ — ФЗ о ФСВНГ
-              </option>
-              <option>
-                Экзамен процедуры практики — Штраф — Задержание — Арест
-              </option>
-              <option>
-                Экзамен теоретические тесты — Штраф — Задержание — Арест
-              </option>
-            </select>
-          </div>
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Предпочтительная дата
-            </label>
-            <input
-              type="date"
-              className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-            />
-          </div>
-        </div>
-        <div className="mb-3">
-          <label className="rank-badge text-muted-foreground block mb-1">
-            Цель экзамена
-          </label>
-          <textarea
-            className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors resize-none"
-            rows={2}
-            placeholder="Опишите цель и ожидаемый результат..."
-          />
-        </div>
-        <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
-          Отправить запрос
-        </button>
-        )
-      </div>
-      <div className="space-y-3">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground">
-          Расписание экзаменов
-        </h3>
-        {[
-          {
-            subject: "Тактическая подготовка",
-            date: "15.06.2024",
-            time: "10:00",
-            room: "Каб. 201",
-            instructor: "Кап. Воронов",
-            status: "pending",
-          },
-          {
-            subject: "Военная история",
-            date: "20.06.2024",
-            time: "09:00",
-            room: "Каб. 105",
-            instructor: "Подп. Ковалёв",
-            status: "pending",
-          },
-          {
-            subject: "Огневая подготовка",
-            date: "25.06.2024",
-            time: "14:00",
-            room: "Тир №2",
-            instructor: "Майор Сидоров",
-            status: "pending",
-          },
-        ].map((e, i) => (
-          <div
-            key={i}
-            className="corner-mark bg-tactical-card border border-tactical-border p-4 hover:border-primary/30 transition-colors"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Icon
-                    name="ClipboardList"
-                    size={16}
-                    className="text-primary"
-                  />
-                </div>
-                <div>
-                  <h4 className="font-oswald text-base font-medium text-foreground tracking-wide">
-                    {e.subject}
-                  </h4>
-                  <div className="flex gap-3 mt-1 flex-wrap">
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {e.date} · {e.time}
-                    </span>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {e.room}
-                    </span>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {e.instructor}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                <StatusBadge status={e.status} />
-                <button className="rank-badge text-primary border border-primary/30 px-2 py-0.5 hover:bg-primary/10 transition-colors">
-                  Записаться
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-          Пройденные экзамены
-        </h3>
-        <div className="space-y-2">
-          {[
-            { subject: "Физическая подготовка", date: "01.06.2024", grade: 5 },
-            { subject: "Медицинская помощь", date: "25.05.2024", grade: 4 },
-            { subject: "Радиосвязь", date: "15.05.2024", grade: 4 },
-          ].map((e, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between py-2 border-b border-tactical-border last:border-0"
-            >
-              <div>
-                <p className="text-sm text-foreground font-ibm">{e.subject}</p>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {e.date}
-                </p>
-              </div>
-              <GradeCircle grade={e.grade} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function Reports() {
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const all = await fetchRequests().catch(() => []);
+    setRequests(all.filter((r) => r.type === "lecture"));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   return (
     <div className="animate-fade-in space-y-6">
       <div className="flex items-center justify-between">
-        <SectionHeader
-          title="Рапорты"
-          sub="Подача служебных рапортов и заявлений"
-        />
+        <SectionHeader title="Лекции" sub="Запросы на прохождение лекций" />
         <button
           onClick={() => setShowForm(!showForm)}
           className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
         >
-          <Icon name="Plus" size={14} />
-          Новый рапорт
+          <Icon name="Plus" size={14} />Новый запрос
         </button>
       </div>
       {showForm && (
-        <div className="bg-tactical-card border border-primary/40 p-4 animate-fade-in">
-          <h3 className="font-oswald text-sm tracking-widest uppercase text-primary mb-4">
-            Подача рапорта
-          </h3>
-          <div className="grid md:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="rank-badge text-muted-foreground block mb-1">
-                Тип рапорта
-              </label>
-              <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary">
-                <option>Рапорт на повышение в звании</option>
-                <option>Запрос дополнительного обучения</option>
-              </select>
-            </div>
-            <div>
-              <label className="rank-badge text-muted-foreground block mb-1">
-                Адресат
-              </label>
-              <input
-                className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary"
-                placeholder="Кому адресован рапорт..."
-              />
-            </div>
-          </div>
-          <div className="mb-3">
-            <label className="rank-badge text-muted-foreground block mb-1">
-              Содержание рапорта
-            </label>
-            <textarea
-              className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary resize-none"
-              rows={4}
-              placeholder="Изложите суть рапорта..."
-            />
-          </div>
-          <div className="flex gap-2">
-            <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
-              Подать рапорт
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors"
-            >
-              Отмена
-            </button>
-          </div>
+        <RequestForm
+          type="lecture"
+          subjectOptions={[
+            "Прослушать вступительную лекцию",
+            "Лекция ФЗ о ФСВНГ и Внутреннему Уставу",
+            "Лекция УК, ПК и КоАП",
+            "Лекция о допуске к закрытой территории",
+          ]}
+          onSubmit={() => { setShowForm(false); load(); }}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет запросов на лекции" /> : (
+        <div className="space-y-2">
+          {requests.map((r) => <RequestCard key={r.id} r={r} icon="GraduationCap" />)}
         </div>
       )}
-      <div className="space-y-2">
-        {MOCK_REPORTS.map((r) => (
-          <div
-            key={r.id}
-            className="bg-tactical-card border border-tactical-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Icon name="FileText" size={14} className="text-primary" />
-              </div>
-              <div>
-                <h4 className="font-ibm text-sm font-medium text-foreground">
-                  {r.title}
-                </h4>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  Подан: {r.date}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <StatusBadge status={r.status} />
-              <button className="rank-badge text-muted-foreground border border-tactical-border px-2 py-0.5 hover:text-foreground transition-colors">
-                <Icon name="Eye" size={12} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
 
-export function Grades() {
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRACTICES
+// ═══════════════════════════════════════════════════════════════════════════════
+export function Practices() {
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const all = await fetchRequests().catch(() => []);
+    setRequests(all.filter((r) => r.type === "practice"));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   return (
     <div className="animate-fade-in space-y-6">
-      <SectionHeader
-        title="Система оценок"
-        sub="Успеваемость и академические показатели"
-      />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          label="Средний балл"
-          value={4.3}
-          icon="Star"
-          accent="text-gold"
-        />
-        <StatCard
-          label="Отличных оценок"
-          value={3}
-          icon="Award"
-          accent="text-green-400"
-        />
-        <StatCard
-          label="Хороших оценок"
-          value={2}
-          icon="ThumbsUp"
-          accent="text-yellow-400"
-        />
-        <StatCard
-          label="Удовлетворит."
-          value={1}
-          icon="Minus"
-          accent="text-orange-400"
-        />
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Практики" sub="Запросы на прохождение практических занятий" />
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
+        >
+          <Icon name="Plus" size={14} />Новый запрос
+        </button>
       </div>
-      <div className="bg-tactical-card border border-tactical-border overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-tactical-border bg-tactical-panel">
-              <th className="text-left px-4 py-3 rank-badge text-muted-foreground">
-                Дисциплина
-              </th>
-              <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">
-                Инструктор
-              </th>
-              <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">
-                Дата
-              </th>
-              <th className="text-center px-4 py-3 rank-badge text-muted-foreground">
-                Оценка
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {MOCK_GRADES.map((g, i) => (
-              <tr
-                key={i}
-                className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors"
-              >
-                <td className="px-4 py-3 text-sm font-ibm text-foreground">
-                  {g.subject}
-                </td>
-                <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">
-                  {g.instructor}
-                </td>
-                <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">
-                  {g.date}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-center">
-                    <GradeCircle grade={g.grade} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
-          Динамика успеваемости
-        </h3>
-        <div className="flex items-end gap-2 h-24">
-          {[3, 4, 4, 5, 4, 5, 5, 4, 5].map((v, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-xs font-mono text-muted-foreground">
-                {v}
-              </span>
-              <div
-                className="w-full bg-primary/60 hover:bg-primary transition-colors"
-                style={{ height: `${(v / 5) * 64}px` }}
-              />
-            </div>
-          ))}
+      {showForm && (
+        <RequestForm
+          type="practice"
+          subjectOptions={[
+            "Отработка Штраф Задержание Ареста на инструкторе",
+            "Огневая подготовка",
+            "Физическая подготовка",
+            "Строевая подготовка",
+            "Присяга",
+          ]}
+          onSubmit={() => { setShowForm(false); load(); }}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет запросов на практику" /> : (
+        <div className="space-y-2">
+          {requests.map((r) => <RequestCard key={r.id} r={r} icon="Wrench" />)}
         </div>
-        <p className="text-xs text-muted-foreground font-mono mt-2 text-center">
-          Последние 9 оценок
-        </p>
-      </div>
+      )}
     </div>
   );
 }
 
-export function Profile({ authUser }: { authUser: User }) {
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXAMS
+// ═══════════════════════════════════════════════════════════════════════════════
+export function Exams() {
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const all = await fetchRequests().catch(() => []);
+    setRequests(all.filter((r) => r.type === "exam"));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   return (
     <div className="animate-fade-in space-y-6">
-      <SectionHeader
-        title="Профиль курсанта"
-        sub="Личные данные и служебная документация"
-      />
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Экзамены" sub="Запросы на прохождение экзаменов" />
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
+        >
+          <Icon name="Plus" size={14} />Записаться
+        </button>
+      </div>
+      {showForm && (
+        <RequestForm
+          type="exam"
+          subjectOptions={[
+            "Экзамен теоретические тесты — Устав ФСВНГ — ФЗ о ФСВНГ",
+            "Экзамен процедуры практики — Штраф — Задержание — Арест",
+            "Экзамен теоретические тесты — Штраф — Задержание — Арест",
+          ]}
+          onSubmit={() => { setShowForm(false); load(); }}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет запросов на экзамены" /> : (
+        <div className="space-y-2">
+          {requests.map((r) => <RequestCard key={r.id} r={r} icon="ClipboardList" />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REPORTS
+// ═══════════════════════════════════════════════════════════════════════════════
+export function Reports() {
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const all = await fetchRequests().catch(() => []);
+    setRequests(all.filter((r) => r.type === "report"));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="animate-fade-in space-y-6">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Рапорты" sub="Подача служебных рапортов и заявлений" />
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
+        >
+          <Icon name="Plus" size={14} />Новый рапорт
+        </button>
+      </div>
+      {showForm && (
+        <RequestForm
+          type="report"
+          subjectOptions={[
+            "Рапорт на повышение в звании",
+            "Запрос дополнительного обучения",
+            "Рапорт о прохождении практики",
+            "Иное обращение",
+          ]}
+          onSubmit={() => { setShowForm(false); load(); }}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет рапортов" /> : (
+        <div className="space-y-2">
+          {requests.map((r) => <RequestCard key={r.id} r={r} icon="FileText" />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GRADES
+// ═══════════════════════════════════════════════════════════════════════════════
+export function Grades({ authUser }: { authUser: User }) {
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchGrades()
+      .then((all) => setGrades(all.filter((g) => g.cadet_id === authUser.id)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [authUser.id]);
+
+  const fives = grades.filter((g) => g.grade === 5).length;
+  const fours = grades.filter((g) => g.grade === 4).length;
+  const threes = grades.filter((g) => g.grade <= 3).length;
+
+  return (
+    <div className="animate-fade-in space-y-6">
+      <SectionHeader title="Система оценок" sub="Успеваемость и академические показатели" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Средний балл" value={avg(grades)} icon="Star" accent="text-gold" />
+        <StatCard label="Отличных (5)" value={fives} icon="Award" accent="text-green-400" />
+        <StatCard label="Хороших (4)" value={fours} icon="ThumbsUp" accent="text-yellow-400" />
+        <StatCard label="Удовлетв. (≤3)" value={threes} icon="Minus" accent="text-orange-400" />
+      </div>
+      {loading ? <Spinner /> : grades.length === 0 ? <Empty text="Оценок пока нет" /> : (
+        <div className="bg-tactical-card border border-tactical-border overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-tactical-border bg-tactical-panel">
+                <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Дисциплина</th>
+                <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Тип</th>
+                <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Инструктор</th>
+                <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Дата</th>
+                <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Оценка</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grades.map((g) => (
+                <tr key={g.id} className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors">
+                  <td className="px-4 py-3 text-sm font-ibm text-foreground">
+                    {g.subject}
+                    {g.comment && <p className="text-xs text-muted-foreground italic">{g.comment}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{TYPE_LABEL[g.type]}</td>
+                  <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{g.instructor_name}</td>
+                  <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{fmt(g.graded_at)}</td>
+                  <td className="px-4 py-3"><div className="flex justify-center"><GradeCircle grade={g.grade} /></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════════════════════════════════════════
+export function Profile({ authUser }: { authUser: User }) {
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [loadingR, setLoadingR] = useState(true);
+  const [loadingG, setLoadingG] = useState(true);
+  const [tab, setTab] = useState<"requests" | "grades">("requests");
+
+  useEffect(() => {
+    fetchRequests().then(setRequests).catch(() => {}).finally(() => setLoadingR(false));
+    fetchGrades()
+      .then((all) => setGrades(all.filter((g) => g.cadet_id === authUser.id)))
+      .catch(() => {})
+      .finally(() => setLoadingG(false));
+  }, [authUser.id]);
+
+  const avgGrade = grades.length
+    ? (grades.reduce((s, g) => s + g.grade, 0) / grades.length).toFixed(1)
+    : "—";
+
+  return (
+    <div className="animate-fade-in space-y-6">
+      <SectionHeader title="Профиль курсанта" sub="Личные данные и история обучения" />
       <div className="grid md:grid-cols-3 gap-4">
         <div className="corner-mark bg-tactical-card border border-tactical-border p-6 card-glow flex flex-col items-center text-center">
           <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-4">
             <Icon name="User" size={36} className="text-primary" />
           </div>
-          <h3 className="font-oswald text-lg tracking-wide text-foreground">
-            {authUser.name}
-          </h3>
-          <p className="text-gold font-mono text-sm mt-1">
-            {authUser.rank || "—"}
-          </p>
+          <h3 className="font-oswald text-lg tracking-wide text-foreground">{authUser.name}</h3>
+          <p className="text-gold font-mono text-sm mt-1">{authUser.rank || "—"}</p>
           <div className="mt-3 px-3 py-1 bg-primary/10 border border-primary/20">
-            <span className="rank-badge text-primary">
-              ID: {authUser.static_id}
-            </span>
+            <span className="rank-badge text-primary">ID: {authUser.static_id}</span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 w-full">
+            <div className="bg-tactical-panel border border-tactical-border p-2 text-center">
+              <p className="font-oswald text-xl text-gold">{avgGrade}</p>
+              <p className="rank-badge text-muted-foreground">Средний балл</p>
+            </div>
+            <div className="bg-tactical-panel border border-tactical-border p-2 text-center">
+              <p className="font-oswald text-xl text-primary">{requests.length}</p>
+              <p className="rank-badge text-muted-foreground">Запросов</p>
+            </div>
           </div>
         </div>
         <div className="md:col-span-2 bg-tactical-card border border-tactical-border p-4">
-          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
-            Служебные данные
-          </h3>
+          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">Служебные данные</h3>
           <div className="space-y-3">
             {[
               { label: "Имя", value: authUser.name },
               { label: "Звание", value: authUser.rank || "—" },
               { label: "Подразделение", value: authUser.unit || "—" },
               { label: "Static ID", value: authUser.static_id },
-              {
-                label: "Роль",
-                value:
-                  authUser.role === "instructor" ? "Инструктор" : "Курсант",
-              },
+              { label: "Роль", value: authUser.role === "instructor" ? "Инструктор" : "Курсант" },
             ].map((item) => (
-              <div
-                key={item.label}
-                className="flex justify-between items-center py-2 border-b border-tactical-border last:border-0"
-              >
-                <span className="rank-badge text-muted-foreground">
-                  {item.label}
-                </span>
-                <span className="text-sm font-ibm text-foreground">
-                  {item.value}
-                </span>
+              <div key={item.label} className="flex justify-between items-center py-2 border-b border-tactical-border last:border-0">
+                <span className="rank-badge text-muted-foreground">{item.label}</span>
+                <span className="text-sm font-ibm text-foreground">{item.value}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-tactical-card border border-tactical-border p-4">
-          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-            Награды и поощрения
-          </h3>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-tactical-border">
+        {([
+          { id: "requests", label: "История запросов" },
+          { id: "grades", label: "Оценки" },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`font-oswald text-sm tracking-widest uppercase px-4 py-2 transition-colors border-b-2 ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "requests" && (
+        loadingR ? <Spinner /> : requests.length === 0 ? <Empty text="Запросов нет" /> : (
           <div className="space-y-2">
-            {[
-              { title: "Лучший курсант месяца", date: "Май 2024" },
-              { title: "Грамота за отличную стрельбу", date: "Апр 2024" },
-            ].map((a, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 py-2 border-b border-tactical-border last:border-0"
-              >
-                <Icon
-                  name="Award"
-                  size={14}
-                  className="text-gold flex-shrink-0"
-                />
-                <div>
-                  <p className="text-sm text-foreground font-ibm">{a.title}</p>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    {a.date}
-                  </p>
+            {requests.map((r) => (
+              <div key={r.id} className="bg-tactical-card border border-tactical-border p-3 flex items-center justify-between gap-3 hover:border-primary/30 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Icon name="FileText" size={12} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-ibm text-foreground">{r.subject}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{TYPE_LABEL[r.type]} · {fmt(r.created_at)}</p>
+                    {r.instructor_comment && <p className="text-xs text-muted-foreground italic mt-0.5">"{r.instructor_comment}"</p>}
+                  </div>
                 </div>
+                <StatusBadge status={r.status} />
               </div>
             ))}
           </div>
-        </div>
-        <div className="bg-tactical-card border border-tactical-border p-4">
-          <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">
-            Документы
-          </h3>
+        )
+      )}
+
+      {tab === "grades" && (
+        loadingG ? <Spinner /> : grades.length === 0 ? <Empty text="Оценок нет" /> : (
           <div className="space-y-2">
-            {[
-              { title: "Личное дело", icon: "FolderOpen" },
-              { title: "Зачётная книжка", icon: "BookOpen" },
-              { title: "Медицинская книжка", icon: "FileHeart" },
-            ].map((d, i) => (
-              <button
-                key={i}
-                className="w-full flex items-center gap-3 py-2 border-b border-tactical-border last:border-0 hover:text-primary transition-colors group text-left"
-              >
-                <Icon
-                  name={d.icon}
-                  fallback="File"
-                  size={14}
-                  className="text-muted-foreground group-hover:text-primary transition-colors"
-                />
-                <span className="text-sm font-ibm">{d.title}</span>
-                <Icon
-                  name="ChevronRight"
-                  size={12}
-                  className="ml-auto text-muted-foreground"
-                />
-              </button>
+            {grades.map((g) => (
+              <div key={g.id} className="bg-tactical-card border border-tactical-border p-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-ibm text-foreground">{g.subject}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{TYPE_LABEL[g.type]} · {g.instructor_name} · {fmt(g.graded_at)}</p>
+                  {g.comment && <p className="text-xs text-muted-foreground italic mt-0.5">"{g.comment}"</p>}
+                </div>
+                <GradeCircle grade={g.grade} />
+              </div>
             ))}
           </div>
-        </div>
-      </div>
+        )
+      )}
     </div>
   );
 }
 
-type EditForm = {
-  name: string;
-  rank: string;
-  unit: string;
-  role: "cadet" | "instructor";
-  password: string;
-};
+// ═══════════════════════════════════════════════════════════════════════════════
+// INSTRUCTOR PANEL
+// ═══════════════════════════════════════════════════════════════════════════════
+type EditForm = { name: string; rank: string; unit: string; role: "cadet" | "instructor"; password: string };
 
-export function InstructorPanel() {
-  const [activeTab, setActiveTab] = useState<
-    "requests" | "cadets" | "schedule" | "whitelist"
-  >("requests");
+export function InstructorPanel({ authUser }: { authUser: User }) {
+  const [activeTab, setActiveTab] = useState<"requests" | "grades" | "cadets" | "whitelist">("requests");
+
+  // --- Requests tab ---
+  const [requests, setRequests] = useState<TrainingRequest[]>([]);
+  const [reqLoading, setReqLoading] = useState(true);
+  const [reviewComment, setReviewComment] = useState<Record<number, string>>({});
+  const [reviewLoading, setReviewLoading] = useState<Record<number, boolean>>({});
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("pending");
+
+  // --- Grades tab ---
+  const [allGrades, setAllGrades] = useState<Grade[]>([]);
+  const [gradesLoading, setGradesLoading] = useState(false);
+  const [gradesLoaded, setGradesLoaded] = useState(false);
+  const [showGradeForm, setShowGradeForm] = useState(false);
+  const [gradeForm, setGradeForm] = useState({ cadet_id: 0, subject: "", type: "exam" as "lecture" | "practice" | "exam", grade: 5, comment: "", request_id: undefined as number | undefined });
+  const [gradeError, setGradeError] = useState("");
+  const [gradeLoading, setGradeLoading] = useState(false);
+
+  // --- Whitelist tab ---
   const [wlUsers, setWlUsers] = useState<import("@/lib/api").AdminUser[]>([]);
   const [wlLoading, setWlLoading] = useState(false);
   const [wlLoaded, setWlLoaded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [form, setForm] = useState({
-    static_id: "",
-    password: "",
-    name: "",
-    rank: "Рядовой",
-    unit: "",
-    role: "cadet" as "cadet" | "instructor",
-  });
+  const [form, setForm] = useState({ static_id: "", password: "", name: "", rank: "Рядовой", unit: "", role: "cadet" as "cadet" | "instructor" });
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
-  const [editUser, setEditUser] = useState<
-    import("@/lib/api").AdminUser | null
-  >(null);
-  const [editForm, setEditForm] = useState<EditForm>({
-    name: "",
-    rank: "",
-    unit: "",
-    role: "cadet",
-    password: "",
-  });
+  const [editUser, setEditUser] = useState<import("@/lib/api").AdminUser | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", rank: "", unit: "", role: "cadet", password: "" });
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
-  const [removeConfirm, setRemoveConfirm] = useState<number | null>(null);
 
-  const loadWhitelist = async (force = false) => {
+  const loadRequests = useCallback(async () => {
+    setReqLoading(true);
+    const r = await fetchRequests().catch(() => []);
+    setRequests(r);
+    setReqLoading(false);
+  }, []);
+
+  const loadGrades = useCallback(async (force = false) => {
+    if (gradesLoaded && !force) return;
+    setGradesLoading(true);
+    const g = await fetchGrades().catch(() => []);
+    setAllGrades(g);
+    setGradesLoaded(true);
+    setGradesLoading(false);
+  }, [gradesLoaded]);
+
+  const loadWhitelist = useCallback(async (force = false) => {
     if (wlLoaded && !force) return;
     setWlLoading(true);
-    try {
-      const { adminListUsers } = await import("@/lib/api");
-      const users = await adminListUsers();
-      setWlUsers(users);
-      setWlLoaded(true);
-    } catch (e) {
-      console.error(e);
-    }
+    const { adminListUsers } = await import("@/lib/api");
+    const users = await adminListUsers().catch(() => []);
+    setWlUsers(users);
+    setWlLoaded(true);
     setWlLoading(false);
-  };
+  }, [wlLoaded]);
+
+  useEffect(() => { loadRequests(); }, [loadRequests]);
 
   const handleTabClick = (tab: typeof activeTab) => {
     setActiveTab(tab);
     if (tab === "whitelist") loadWhitelist();
+    if (tab === "grades") loadGrades();
+    if (tab === "requests") loadRequests();
+  };
+
+  const handleReview = async (id: number, status: "approved" | "rejected") => {
+    setReviewLoading((prev) => ({ ...prev, [id]: true }));
+    await reviewRequest(id, status, reviewComment[id] || "").catch(() => {});
+    await loadRequests();
+    setReviewLoading((prev) => ({ ...prev, [id]: false }));
+  };
+
+  const handleGradeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGradeError("");
+    setGradeLoading(true);
+    try {
+      await createGrade(gradeForm);
+      setShowGradeForm(false);
+      setGradeForm({ cadet_id: 0, subject: "", type: "exam", grade: 5, comment: "", request_id: undefined });
+      await loadGrades(true);
+      await loadRequests();
+    } catch (err: unknown) {
+      setGradeError(err instanceof Error ? err.message : "Ошибка");
+    }
+    setGradeLoading(false);
+  };
+
+  const openGradeFromRequest = (r: TrainingRequest) => {
+    setGradeForm({ cadet_id: r.cadet_id, subject: r.subject, type: r.type as "lecture" | "practice" | "exam", grade: 5, comment: "", request_id: r.id });
+    setShowGradeForm(true);
+    setActiveTab("grades");
   };
 
   const toggleWhitelist = async (id: number, current: boolean) => {
     const { adminUpdateUser } = await import("@/lib/api");
     await adminUpdateUser(id, { is_whitelisted: !current });
-    setWlUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, is_whitelisted: !current } : u)),
-    );
+    setWlUsers((prev) => prev.map((u) => (u.id === id ? { ...u, is_whitelisted: !current } : u)));
   };
 
   const openEdit = (u: import("@/lib/api").AdminUser) => {
     setEditUser(u);
-    setEditForm({
-      name: u.name,
-      rank: u.rank,
-      unit: u.unit,
-      role: u.role,
-      password: "",
-    });
+    setEditForm({ name: u.name, rank: u.rank, unit: u.unit, role: u.role, password: "" });
     setEditError("");
   };
 
@@ -939,33 +791,15 @@ export function InstructorPanel() {
     setEditLoading(true);
     try {
       const { adminUpdateUser } = await import("@/lib/api");
-      const payload: Parameters<typeof adminUpdateUser>[1] = {
-        name: editForm.name,
-        rank: editForm.rank,
-        unit: editForm.unit,
-        role: editForm.role,
-      };
+      const payload: Parameters<typeof adminUpdateUser>[1] = { name: editForm.name, rank: editForm.rank, unit: editForm.unit, role: editForm.role };
       if (editForm.password) payload.password = editForm.password;
       await adminUpdateUser(editUser.id, payload);
-      setWlUsers((prev) =>
-        prev.map((u) =>
-          u.id === editUser.id ? { ...u, ...editForm, password: undefined } : u,
-        ),
-      );
+      setWlUsers((prev) => prev.map((u) => u.id === editUser.id ? { ...u, ...editForm } : u));
       setEditUser(null);
     } catch (err: unknown) {
-      setEditError(err instanceof Error ? err.message : "Ошибка сохранения");
+      setEditError(err instanceof Error ? err.message : "Ошибка");
     }
     setEditLoading(false);
-  };
-
-  const handleRemove = async (id: number) => {
-    const { adminRemoveUser } = await import("@/lib/api");
-    await adminRemoveUser(id);
-    setWlUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, is_whitelisted: false } : u)),
-    );
-    setRemoveConfirm(null);
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -976,14 +810,7 @@ export function InstructorPanel() {
       const { adminCreateUser } = await import("@/lib/api");
       await adminCreateUser({ ...form, is_whitelisted: true });
       setShowAddForm(false);
-      setForm({
-        static_id: "",
-        password: "",
-        name: "",
-        rank: "Рядовой",
-        unit: "",
-        role: "cadet",
-      });
+      setForm({ static_id: "", password: "", name: "", rank: "Рядовой", unit: "", role: "cadet" });
       loadWhitelist(true);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Ошибка");
@@ -991,222 +818,299 @@ export function InstructorPanel() {
     setFormLoading(false);
   };
 
+  // Filtered requests
+  const filteredRequests = requests.filter((r) => {
+    if (filterType !== "all" && r.type !== filterType) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    return true;
+  });
+
+  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const cadets = wlUsers.filter((u) => u.role === "cadet");
+
   return (
     <div className="animate-fade-in space-y-6">
-      <SectionHeader
-        title="Панель инструктора"
-        sub="Управление курсантами, запросами и расписанием"
-      />
+      <SectionHeader title="Панель инструктора" sub="Управление курсантами, запросами и оценками" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          label="Новых запросов"
-          value={4}
-          icon="Bell"
-          accent="text-yellow-400"
-        />
-        <StatCard
-          label="Курсантов"
-          value={wlUsers.filter((u) => u.role === "cadet").length || 28}
-          icon="Users"
-          accent="text-primary"
-        />
-        <StatCard
-          label="Занятий сегодня"
-          value={3}
-          icon="Calendar"
-          accent="text-green-400"
-        />
-        <StatCard
-          label="Рапортов на рассм."
-          value={2}
-          icon="FileText"
-          accent="text-gold"
-        />
+        <StatCard label="Новых запросов" value={pendingCount} icon="Bell" accent="text-yellow-400" />
+        <StatCard label="Курсантов" value={wlUsers.filter((u) => u.role === "cadet").length || "—"} icon="Users" accent="text-primary" />
+        <StatCard label="Всего оценок" value={allGrades.length} icon="Award" accent="text-green-400" />
+        <StatCard label="Запросов всего" value={requests.length} icon="FileText" accent="text-gold" />
       </div>
+
+      {/* Tabs */}
       <div className="flex gap-1 border-b border-tactical-border overflow-x-auto">
-        {(
-          [
-            { id: "requests", label: "Запросы" },
-            { id: "cadets", label: "Курсанты" },
-            { id: "schedule", label: "Расписание" },
-            { id: "whitelist", label: "Вайтлист" },
-          ] as const
-        ).map((tab) => (
+        {([
+          { id: "requests", label: "Запросы" },
+          { id: "grades", label: "Оценки" },
+          { id: "cadets", label: "Курсанты" },
+          { id: "whitelist", label: "Вайтлист" },
+        ] as const).map((tab) => (
           <button
             key={tab.id}
             onClick={() => handleTabClick(tab.id)}
             className={`font-oswald text-sm tracking-widest uppercase px-4 py-2 transition-colors border-b-2 whitespace-nowrap ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {tab.label}
+            {tab.id === "requests" && pendingCount > 0 && (
+              <span className="ml-1.5 bg-yellow-500 text-black text-xs font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+            )}
           </button>
         ))}
       </div>
+
+      {/* ── REQUESTS TAB ── */}
       {activeTab === "requests" && (
-        <div className="space-y-2 animate-fade-in">
-          {MOCK_INSTRUCTOR_REQUESTS.map((r) => (
-            <div
-              key={r.id}
-              className="bg-tactical-card border border-tactical-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex gap-2 flex-wrap">
+            <select
+              className="bg-tactical-panel border border-tactical-border px-3 py-1.5 text-xs text-foreground font-ibm focus:outline-none focus:border-primary"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Icon name="User" size={14} className="text-primary" />
+              <option value="pending">На рассмотрении</option>
+              <option value="approved">Одобренные</option>
+              <option value="rejected">Отклонённые</option>
+              <option value="all">Все статусы</option>
+            </select>
+            <select
+              className="bg-tactical-panel border border-tactical-border px-3 py-1.5 text-xs text-foreground font-ibm focus:outline-none focus:border-primary"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="all">Все типы</option>
+              <option value="lecture">Лекции</option>
+              <option value="practice">Практики</option>
+              <option value="exam">Экзамены</option>
+              <option value="report">Рапорты</option>
+            </select>
+          </div>
+          {reqLoading ? <Spinner /> : filteredRequests.length === 0 ? <Empty text="Нет запросов" /> : (
+            <div className="space-y-3">
+              {filteredRequests.map((r) => (
+                <div key={r.id} className="bg-tactical-card border border-tactical-border p-4 space-y-3 hover:border-primary/30 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Icon name="User" size={14} className="text-primary" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-ibm text-sm font-medium text-foreground">{r.cadet_rank} {r.cadet_name}</h4>
+                          <span className="rank-badge text-muted-foreground bg-tactical-panel px-1.5 py-0.5">{TYPE_LABEL[r.type]}</span>
+                        </div>
+                        <p className="text-sm text-foreground mt-0.5">{r.subject}</p>
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                          {fmt(r.created_at)}
+                          {r.preferred_date && ` · Дата: ${fmt(r.preferred_date)}`}
+                        </p>
+                        {r.description && <p className="text-xs text-muted-foreground mt-1 italic">"{r.description}"</p>}
+                      </div>
+                    </div>
+                    <StatusBadge status={r.status} />
+                  </div>
+                  {r.status === "pending" && (
+                    <div className="border-t border-tactical-border pt-3 space-y-2">
+                      <input
+                        className="w-full bg-tactical-panel border border-tactical-border px-3 py-1.5 text-xs text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                        placeholder="Комментарий инструктора (необязательно)..."
+                        value={reviewComment[r.id] || ""}
+                        onChange={(e) => setReviewComment((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                      />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          disabled={reviewLoading[r.id]}
+                          onClick={() => handleReview(r.id, "approved")}
+                          className="rank-badge text-green-400 border border-green-800 px-3 py-1 hover:bg-green-900/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <Icon name="Check" size={12} />Одобрить
+                        </button>
+                        <button
+                          disabled={reviewLoading[r.id]}
+                          onClick={() => handleReview(r.id, "rejected")}
+                          className="rank-badge text-red-400 border border-red-800 px-3 py-1 hover:bg-red-900/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <Icon name="X" size={12} />Отклонить
+                        </button>
+                        {r.type !== "report" && (
+                          <button
+                            onClick={() => openGradeFromRequest(r)}
+                            className="rank-badge text-primary border border-primary/40 px-3 py-1 hover:bg-primary/10 transition-colors flex items-center gap-1"
+                          >
+                            <Icon name="Star" size={12} />Поставить оценку
+                          </button>
+                        )}
+                        {reviewLoading[r.id] && <Icon name="Loader2" size={14} className="text-primary animate-spin" />}
+                      </div>
+                    </div>
+                  )}
+                  {r.status !== "pending" && r.reviewer_name && (
+                    <p className="text-xs text-muted-foreground font-mono border-t border-tactical-border pt-2">
+                      Рассмотрел: {r.reviewer_name}
+                      {r.instructor_comment && ` · "${r.instructor_comment}"`}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── GRADES TAB ── */}
+      {activeTab === "grades" && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowGradeForm(!showGradeForm)}
+              className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              <Icon name="Plus" size={14} />Поставить оценку
+            </button>
+          </div>
+          {showGradeForm && (
+            <form onSubmit={handleGradeSubmit} className="bg-tactical-card border border-primary/40 p-4 animate-fade-in space-y-3">
+              <h3 className="font-oswald text-sm tracking-widest uppercase text-primary">Выставить оценку</h3>
+              <div className="grid md:grid-cols-2 gap-3">
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Курсант</label>
+                  <select
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary"
+                    value={gradeForm.cadet_id}
+                    onChange={(e) => setGradeForm({ ...gradeForm, cadet_id: Number(e.target.value) })}
+                    required
+                  >
+                    <option value={0}>— выберите курсанта —</option>
+                    {cadets.map((c) => <option key={c.id} value={c.id}>{c.rank} {c.name}</option>)}
+                    {cadets.length === 0 && <option disabled>Загрузите вайтлист</option>}
+                  </select>
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-ibm text-sm font-medium text-foreground">
-                      {r.cadet}
-                    </h4>
-                    <span className="rank-badge text-muted-foreground bg-tactical-panel px-1.5 py-0.5">
-                      {r.type}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                    {r.subject} · {r.date}
-                  </p>
+                  <label className="rank-badge text-muted-foreground block mb-1">Тип</label>
+                  <select
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary"
+                    value={gradeForm.type}
+                    onChange={(e) => setGradeForm({ ...gradeForm, type: e.target.value as typeof gradeForm.type })}
+                  >
+                    <option value="exam">Экзамен</option>
+                    <option value="practice">Практика</option>
+                    <option value="lecture">Лекция</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Дисциплина</label>
+                  <input
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary"
+                    placeholder="Название дисциплины"
+                    value={gradeForm.subject}
+                    onChange={(e) => setGradeForm({ ...gradeForm, subject: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Оценка</label>
+                  <select
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary"
+                    value={gradeForm.grade}
+                    onChange={(e) => setGradeForm({ ...gradeForm, grade: Number(e.target.value) })}
+                  >
+                    <option value={5}>5 — Отлично</option>
+                    <option value={4}>4 — Хорошо</option>
+                    <option value={3}>3 — Удовлетворительно</option>
+                    <option value={2}>2 — Неудовлетворительно</option>
+                  </select>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                <StatusBadge status={r.status} />
-                {r.status === "pending" && (
-                  <>
-                    <button className="rank-badge text-green-400 border border-green-800 px-2 py-0.5 hover:bg-green-900/30 transition-colors">
-                      Одобрить
-                    </button>
-                    <button className="rank-badge text-red-400 border border-red-800 px-2 py-0.5 hover:bg-red-900/30 transition-colors">
-                      Отклонить
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {activeTab === "cadets" && (
-        <div className="bg-tactical-card border border-tactical-border overflow-hidden animate-fade-in">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-tactical-border bg-tactical-panel">
-                <th className="text-left px-4 py-3 rank-badge text-muted-foreground">
-                  Курсант
-                </th>
-                <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">
-                  Подразделение
-                </th>
-                <th className="text-center px-4 py-3 rank-badge text-muted-foreground">
-                  Ср. балл
-                </th>
-                <th className="text-center px-4 py-3 rank-badge text-muted-foreground">
-                  Статус
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                {
-                  name: "Алексеев А.В.",
-                  unit: "1-й взвод",
-                  avg: 4.3,
-                  status: "active",
-                },
-                {
-                  name: "Борисов К.Н.",
-                  unit: "1-й взвод",
-                  avg: 3.8,
-                  status: "active",
-                },
-                {
-                  name: "Васильев Д.О.",
-                  unit: "2-й взвод",
-                  avg: 4.7,
-                  status: "active",
-                },
-                {
-                  name: "Григорьев П.М.",
-                  unit: "2-й взвод",
-                  avg: 3.5,
-                  status: "probation",
-                },
-                {
-                  name: "Данилов С.В.",
-                  unit: "3-й взвод",
-                  avg: 4.1,
-                  status: "active",
-                },
-              ].map((c, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors"
-                >
-                  <td className="px-4 py-3 text-sm font-ibm text-foreground">
-                    {c.name}
-                  </td>
-                  <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">
-                    {c.unit}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`font-oswald text-base font-bold ${c.avg >= 4.5 ? "text-green-400" : c.avg >= 4.0 ? "text-yellow-400" : "text-orange-400"}`}
-                    >
-                      {c.avg}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`rank-badge px-2 py-0.5 border rounded ${c.status === "active" ? "text-green-400 border-green-800 bg-green-900/20" : "text-orange-400 border-orange-800 bg-orange-900/20"}`}
-                    >
-                      {c.status === "active" ? "Активен" : "Наблюдение"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {activeTab === "schedule" && (
-        <div className="space-y-2 animate-fade-in">
-          {[
-            {
-              time: "09:00–11:00",
-              subject: "Тактическая подготовка",
-              group: "1-й взвод",
-              room: "Поле №1",
-            },
-            {
-              time: "12:00–14:00",
-              subject: "Огневая подготовка",
-              group: "2-й взвод",
-              room: "Тир №1",
-            },
-            {
-              time: "15:00–17:00",
-              subject: "Военная история",
-              group: "3-й взвод",
-              room: "Каб. 105",
-            },
-          ].map((s, i) => (
-            <div
-              key={i}
-              className="bg-tactical-card border border-tactical-border p-4 flex items-center gap-4"
-            >
-              <div className="w-28 text-center flex-shrink-0">
-                <span className="font-mono text-sm text-primary">{s.time}</span>
-              </div>
-              <div className="w-px h-10 bg-tactical-border flex-shrink-0" />
               <div>
-                <h4 className="font-oswald text-base text-foreground">
-                  {s.subject}
-                </h4>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {s.group} · {s.room}
-                </p>
+                <label className="rank-badge text-muted-foreground block mb-1">Комментарий (необязательно)</label>
+                <input
+                  className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary"
+                  placeholder="Замечания или пояснения..."
+                  value={gradeForm.comment}
+                  onChange={(e) => setGradeForm({ ...gradeForm, comment: e.target.value })}
+                />
               </div>
+              {gradeError && (
+                <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
+                  <Icon name="AlertTriangle" size={13} className="text-red-400" />
+                  <p className="text-xs text-red-400">{gradeError}</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="submit" disabled={gradeLoading} className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors disabled:opacity-50">
+                  {gradeLoading ? "Сохранение..." : "Выставить"}
+                </button>
+                <button type="button" onClick={() => setShowGradeForm(false)} className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors">
+                  Отмена
+                </button>
+              </div>
+            </form>
+          )}
+          {gradesLoading ? <Spinner /> : allGrades.length === 0 ? <Empty text="Оценок пока нет" /> : (
+            <div className="bg-tactical-card border border-tactical-border overflow-x-auto">
+              <table className="w-full min-w-[500px]">
+                <thead>
+                  <tr className="border-b border-tactical-border bg-tactical-panel">
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Курсант</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Дисциплина</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Тип</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Дата</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Оценка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allGrades.map((g) => (
+                    <tr key={g.id} className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors">
+                      <td className="px-4 py-3 text-sm font-ibm text-foreground">{g.cadet_rank} {g.cadet_name}</td>
+                      <td className="px-4 py-3 text-sm font-ibm text-foreground">
+                        {g.subject}
+                        {g.comment && <p className="text-xs text-muted-foreground italic">{g.comment}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{TYPE_LABEL[g.type]}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{fmt(g.graded_at)}</td>
+                      <td className="px-4 py-3"><div className="flex justify-center"><GradeCircle grade={g.grade} /></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
         </div>
       )}
+
+      {/* ── CADETS TAB ── */}
+      {activeTab === "cadets" && (
+        <div className="animate-fade-in">
+          {wlLoading ? <Spinner /> : (
+            <div className="bg-tactical-card border border-tactical-border overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-tactical-border bg-tactical-panel">
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Курсант</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Звание</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Подразделение</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wlUsers.filter((u) => u.role === "cadet" && u.is_whitelisted).length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">Нет курсантов. Загрузите вайтлист.</td></tr>
+                  ) : wlUsers.filter((u) => u.role === "cadet" && u.is_whitelisted).map((c) => (
+                    <tr key={c.id} className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors">
+                      <td className="px-4 py-3 text-sm font-ibm text-foreground">{c.name}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{c.rank}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden md:table-cell">{c.unit || "—"}</td>
+                      <td className="px-4 py-3 text-center font-mono text-sm text-primary">{c.static_id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── WHITELIST TAB ── */}
       {activeTab === "whitelist" && (
         <div className="space-y-4 animate-fade-in">
           <div className="flex justify-end">
@@ -1214,373 +1118,123 @@ export function InstructorPanel() {
               onClick={() => setShowAddForm(!showAddForm)}
               className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
             >
-              <Icon name="Plus" size={14} />
-              Добавить пользователя
+              <Icon name="Plus" size={14} />Добавить пользователя
             </button>
           </div>
           {showAddForm && (
-            <form
-              onSubmit={handleAddUser}
-              className="bg-tactical-card border border-primary/40 p-4 space-y-3 animate-fade-in"
-            >
-              <h3 className="font-oswald text-sm tracking-widest uppercase text-primary">
-                Новый пользователь
-              </h3>
+            <form onSubmit={handleAddUser} className="bg-tactical-card border border-primary/40 p-4 space-y-3 animate-fade-in">
+              <h3 className="font-oswald text-sm tracking-widest uppercase text-primary">Новый пользователь</h3>
               <div className="grid md:grid-cols-2 gap-3">
+                {[
+                  { label: "Static ID (6 цифр)", key: "static_id", placeholder: "000000", mono: true },
+                  { label: "Пароль", key: "password", placeholder: "Придумайте пароль", type: "password" },
+                  { label: "Имя / Позывной", key: "name", placeholder: "Фамилия И.О." },
+                  { label: "Звание", key: "rank", placeholder: "Рядовой" },
+                  { label: "Подразделение", key: "unit", placeholder: "1-й учебный взвод" },
+                ].map(({ label, key, placeholder, type, mono }) => (
+                  <div key={key}>
+                    <label className="rank-badge text-muted-foreground block mb-1">{label}</label>
+                    <input
+                      type={type || "text"}
+                      className={`w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors ${mono ? "font-mono" : "font-ibm"}`}
+                      placeholder={placeholder}
+                      value={form[key as keyof typeof form]}
+                      maxLength={key === "static_id" ? 6 : undefined}
+                      onChange={(e) => setForm({ ...form, [key]: key === "static_id" ? e.target.value.replace(/\D/g, "") : e.target.value })}
+                      required={key !== "unit"}
+                    />
+                  </div>
+                ))}
                 <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Static ID (6 цифр)
-                  </label>
-                  <input
-                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:border-primary transition-colors"
-                    maxLength={6}
-                    placeholder="000000"
-                    value={form.static_id}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        static_id: e.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Пароль
-                  </label>
-                  <input
-                    type="password"
-                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    placeholder="Придумайте пароль"
-                    value={form.password}
-                    onChange={(e) =>
-                      setForm({ ...form, password: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Имя / Позывной
-                  </label>
-                  <input
-                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    placeholder="Фамилия И.О."
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Звание
-                  </label>
-                  <input
-                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    placeholder="Рядовой"
-                    value={form.rank}
-                    onChange={(e) => setForm({ ...form, rank: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Подразделение
-                  </label>
-                  <input
-                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    placeholder="1-й учебный взвод"
-                    value={form.unit}
-                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Роль
-                  </label>
-                  <select
-                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    value={form.role}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        role: e.target.value as "cadet" | "instructor",
-                      })
-                    }
-                  >
+                  <label className="rank-badge text-muted-foreground block mb-1">Роль</label>
+                  <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as "cadet" | "instructor" })}>
                     <option value="cadet">Курсант</option>
                     <option value="instructor">Инструктор</option>
                   </select>
                 </div>
               </div>
-              {formError && (
-                <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
-                  <Icon
-                    name="AlertTriangle"
-                    size={13}
-                    className="text-red-400"
-                  />
-                  <p className="text-xs text-red-400">{formError}</p>
-                </div>
-              )}
+              {formError && <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2"><Icon name="AlertTriangle" size={13} className="text-red-400" /><p className="text-xs text-red-400">{formError}</p></div>}
               <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {formLoading ? "Сохранение..." : "Добавить"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors"
-                >
-                  Отмена
-                </button>
+                <button type="submit" disabled={formLoading} className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors disabled:opacity-50">{formLoading ? "Сохранение..." : "Добавить"}</button>
+                <button type="button" onClick={() => setShowAddForm(false)} className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors">Отмена</button>
               </div>
             </form>
           )}
-          {wlLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <Icon
-                name="Loader2"
-                size={24}
-                className="text-primary animate-spin"
-              />
-            </div>
-          ) : (
+
+          {editUser && (
+            <form onSubmit={handleEditSave} className="bg-tactical-card border border-yellow-800/50 p-4 space-y-3 animate-fade-in">
+              <h3 className="font-oswald text-sm tracking-widest uppercase text-yellow-400">Редактировать: {editUser.name}</h3>
+              <div className="grid md:grid-cols-2 gap-3">
+                {[
+                  { label: "Имя", key: "name" },
+                  { label: "Звание", key: "rank" },
+                  { label: "Подразделение", key: "unit" },
+                  { label: "Новый пароль", key: "password", type: "password", placeholder: "Оставьте пустым, если не менять" },
+                ].map(({ label, key, type, placeholder }) => (
+                  <div key={key}>
+                    <label className="rank-badge text-muted-foreground block mb-1">{label}</label>
+                    <input type={type || "text"} className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary" placeholder={placeholder} value={editForm[key as keyof EditForm]} onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })} />
+                  </div>
+                ))}
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Роль</label>
+                  <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary" value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "cadet" | "instructor" })}>
+                    <option value="cadet">Курсант</option>
+                    <option value="instructor">Инструктор</option>
+                  </select>
+                </div>
+              </div>
+              {editError && <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2"><Icon name="AlertTriangle" size={13} className="text-red-400" /><p className="text-xs text-red-400">{editError}</p></div>}
+              <div className="flex gap-2">
+                <button type="submit" disabled={editLoading} className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors disabled:opacity-50">{editLoading ? "Сохранение..." : "Сохранить"}</button>
+                <button type="button" onClick={() => setEditUser(null)} className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors">Отмена</button>
+              </div>
+            </form>
+          )}
+
+          {wlLoading ? <Spinner /> : (
             <div className="bg-tactical-card border border-tactical-border overflow-x-auto">
               <table className="w-full min-w-[600px]">
                 <thead>
                   <tr className="border-b border-tactical-border bg-tactical-panel">
-                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">
-                      Static ID
-                    </th>
-                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">
-                      Имя
-                    </th>
-                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">
-                      Звание
-                    </th>
-                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">
-                      Роль
-                    </th>
-                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">
-                      Доступ
-                    </th>
-                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">
-                      Действия
-                    </th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Static ID</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Имя</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Звание</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Роль</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Доступ</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
                   {wlUsers.map((u) => (
-                    <tr
-                      key={u.id}
-                      className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors"
-                    >
-                      <td className="px-4 py-3 font-mono text-sm text-primary">
-                        {u.static_id}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-ibm text-foreground">
-                        {u.name}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {u.rank}
-                      </td>
+                    <tr key={u.id} className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors">
+                      <td className="px-4 py-3 font-mono text-sm text-primary">{u.static_id}</td>
+                      <td className="px-4 py-3 text-sm font-ibm text-foreground">{u.name}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{u.rank}</td>
                       <td className="px-4 py-3 text-center">
-                        <span
-                          className={`rank-badge px-2 py-0.5 border rounded ${u.role === "instructor" ? "text-primary border-primary/40 bg-primary/10" : "text-muted-foreground border-tactical-border"}`}
-                        >
+                        <span className={`rank-badge px-2 py-0.5 border ${u.role === "instructor" ? "text-yellow-400 border-yellow-800 bg-yellow-900/20" : "text-primary border-primary/30 bg-primary/10"}`}>
                           {u.role === "instructor" ? "Инструктор" : "Курсант"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
-                          onClick={() =>
-                            toggleWhitelist(u.id, u.is_whitelisted)
-                          }
-                          className={`rank-badge px-2 py-0.5 border rounded transition-colors ${u.is_whitelisted ? "text-green-400 border-green-800 bg-green-900/20 hover:bg-green-900/40" : "text-red-400 border-red-800 bg-red-900/20 hover:bg-red-900/40"}`}
+                          onClick={() => toggleWhitelist(u.id, u.is_whitelisted)}
+                          className={`rank-badge px-2 py-0.5 border transition-colors ${u.is_whitelisted ? "text-green-400 border-green-800 hover:bg-red-900/20 hover:text-red-400 hover:border-red-800" : "text-red-400 border-red-800 hover:bg-green-900/20 hover:text-green-400 hover:border-green-800"}`}
                         >
-                          {u.is_whitelisted ? "Разрешён" : "Заблокирован"}
+                          {u.is_whitelisted ? "Активен" : "Заблокирован"}
                         </button>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openEdit(u)}
-                            title="Редактировать"
-                            className="w-7 h-7 flex items-center justify-center border border-tactical-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
-                          >
-                            <Icon name="Pencil" size={12} />
-                          </button>
-                          {removeConfirm === u.id ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleRemove(u.id)}
-                                className="rank-badge text-red-400 border border-red-800 bg-red-900/20 px-2 py-0.5 hover:bg-red-900/40 transition-colors"
-                              >
-                                Подтвердить
-                              </button>
-                              <button
-                                onClick={() => setRemoveConfirm(null)}
-                                className="rank-badge text-muted-foreground border border-tactical-border px-2 py-0.5 hover:border-primary/40 transition-colors"
-                              >
-                                Отмена
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setRemoveConfirm(u.id)}
-                              title="Удалить из вайтлиста"
-                              className="w-7 h-7 flex items-center justify-center border border-tactical-border text-muted-foreground hover:text-red-400 hover:border-red-800 transition-colors"
-                            >
-                              <Icon name="UserX" size={12} />
-                            </button>
-                          )}
-                        </div>
+                      <td className="px-4 py-3 text-center">
+                        <button onClick={() => openEdit(u)} className="rank-badge text-primary border border-primary/30 px-2 py-0.5 hover:bg-primary/10 transition-colors">
+                          <Icon name="Pencil" size={11} />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {wlUsers.length === 0 && (
-                <p className="text-center text-muted-foreground rank-badge py-8">
-                  Пользователей нет
-                </p>
-              )}
             </div>
           )}
-        </div>
-      )}
-
-      {editUser && (
-        <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4"
-          onClick={() => setEditUser(null)}
-        >
-          <div
-            className="w-full max-w-md bg-tactical-panel border border-tactical-border p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="font-oswald text-base tracking-widest uppercase text-primary">
-                Редактировать профиль
-              </h3>
-              <button
-                onClick={() => setEditUser(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Icon name="X" size={16} />
-              </button>
-            </div>
-            <p className="rank-badge text-muted-foreground">
-              Static ID: {editUser.static_id}
-            </p>
-            <form onSubmit={handleEditSave} className="space-y-3">
-              <div>
-                <label className="rank-badge text-muted-foreground block mb-1">
-                  Имя / Позывной
-                </label>
-                <input
-                  className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                  value={editForm.name}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, name: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Звание
-                  </label>
-                  <input
-                    className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    value={editForm.rank}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, rank: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="rank-badge text-muted-foreground block mb-1">
-                    Роль
-                  </label>
-                  <select
-                    className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                    value={editForm.role}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        role: e.target.value as "cadet" | "instructor",
-                      })
-                    }
-                  >
-                    <option value="cadet">Курсант</option>
-                    <option value="instructor">Инструктор</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="rank-badge text-muted-foreground block mb-1">
-                  Подразделение
-                </label>
-                <input
-                  className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                  value={editForm.unit}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, unit: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="rank-badge text-muted-foreground block mb-1">
-                  Новый пароль{" "}
-                  <span className="text-muted-foreground">
-                    (оставьте пустым, чтобы не менять)
-                  </span>
-                </label>
-                <input
-                  type="password"
-                  className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
-                  placeholder="••••••••"
-                  value={editForm.password}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, password: e.target.value })
-                  }
-                />
-              </div>
-              {editError && (
-                <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
-                  <Icon
-                    name="AlertTriangle"
-                    size={13}
-                    className="text-red-400"
-                  />
-                  <p className="text-xs text-red-400">{editError}</p>
-                </div>
-              )}
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="submit"
-                  disabled={editLoading}
-                  className="flex-1 bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {editLoading ? "Сохранение..." : "Сохранить"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditUser(null)}
-                  className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors"
-                >
-                  Отмена
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </div>

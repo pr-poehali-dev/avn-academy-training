@@ -35,9 +35,9 @@ export default function Index({ authUser, onLogout }: IndexProps) {
       case "practices": return <Practices />;
       case "exams": return <Exams />;
       case "reports": return <Reports />;
-      case "grades": return <Grades />;
+      case "grades": return <Grades authUser={authUser} />;
       case "profile": return <Profile authUser={authUser} />;
-      case "instructor": return <InstructorPanel />;
+      case "instructor": return <InstructorPanel authUser={authUser} />;
     }
   };
 
