@@ -424,7 +424,7 @@ export function Exams() {
         </div>
         <div className="mb-3">
           <label className="rank-badge text-muted-foreground block mb-1">
-            Цель практики
+            Цель экзамена
           </label>
           <textarea
             className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors resize-none"
