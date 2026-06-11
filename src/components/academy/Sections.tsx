@@ -481,6 +481,8 @@ export function Profile({ authUser }: { authUser: User }) {
   );
 }
 
+type EditForm = { name: string; rank: string; unit: string; role: "cadet" | "instructor"; password: string };
+
 export function InstructorPanel() {
   const [activeTab, setActiveTab] = useState<"requests" | "cadets" | "schedule" | "whitelist">("requests");
   const [wlUsers, setWlUsers] = useState<import("@/lib/api").AdminUser[]>([]);
@@ -490,9 +492,14 @@ export function InstructorPanel() {
   const [form, setForm] = useState({ static_id: "", password: "", name: "", rank: "Рядовой", unit: "", role: "cadet" as "cadet" | "instructor" });
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const [editUser, setEditUser] = useState<import("@/lib/api").AdminUser | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", rank: "", unit: "", role: "cadet", password: "" });
+  const [editError, setEditError] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState<number | null>(null);
 
-  const loadWhitelist = async () => {
-    if (wlLoaded) return;
+  const loadWhitelist = async (force = false) => {
+    if (wlLoaded && !force) return;
     setWlLoading(true);
     try {
       const { adminListUsers } = await import("@/lib/api");
@@ -514,6 +521,42 @@ export function InstructorPanel() {
     setWlUsers((prev) => prev.map((u) => u.id === id ? { ...u, is_whitelisted: !current } : u));
   };
 
+  const openEdit = (u: import("@/lib/api").AdminUser) => {
+    setEditUser(u);
+    setEditForm({ name: u.name, rank: u.rank, unit: u.unit, role: u.role, password: "" });
+    setEditError("");
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setEditError("");
+    setEditLoading(true);
+    try {
+      const { adminUpdateUser } = await import("@/lib/api");
+      const payload: Parameters<typeof adminUpdateUser>[1] = {
+        name: editForm.name,
+        rank: editForm.rank,
+        unit: editForm.unit,
+        role: editForm.role,
+      };
+      if (editForm.password) payload.password = editForm.password;
+      await adminUpdateUser(editUser.id, payload);
+      setWlUsers((prev) => prev.map((u) => u.id === editUser.id ? { ...u, ...editForm, password: undefined } : u));
+      setEditUser(null);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : "Ошибка сохранения");
+    }
+    setEditLoading(false);
+  };
+
+  const handleRemove = async (id: number) => {
+    const { adminRemoveUser } = await import("@/lib/api");
+    await adminRemoveUser(id);
+    setWlUsers((prev) => prev.map((u) => u.id === id ? { ...u, is_whitelisted: false } : u));
+    setRemoveConfirm(null);
+  };
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -523,8 +566,7 @@ export function InstructorPanel() {
       await adminCreateUser({ ...form, is_whitelisted: true });
       setShowAddForm(false);
       setForm({ static_id: "", password: "", name: "", rank: "Рядовой", unit: "", role: "cadet" });
-      setWlLoaded(false);
-      loadWhitelist();
+      loadWhitelist(true);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Ошибка");
     }
@@ -747,15 +789,16 @@ export function InstructorPanel() {
               <Icon name="Loader2" size={24} className="text-primary animate-spin" />
             </div>
           ) : (
-            <div className="bg-tactical-card border border-tactical-border overflow-hidden">
-              <table className="w-full">
+            <div className="bg-tactical-card border border-tactical-border overflow-x-auto">
+              <table className="w-full min-w-[600px]">
                 <thead>
                   <tr className="border-b border-tactical-border bg-tactical-panel">
                     <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Static ID</th>
                     <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Имя</th>
-                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Звание</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Звание</th>
                     <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Роль</th>
-                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Вайтлист</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Доступ</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -763,7 +806,7 @@ export function InstructorPanel() {
                     <tr key={u.id} className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors">
                       <td className="px-4 py-3 font-mono text-sm text-primary">{u.static_id}</td>
                       <td className="px-4 py-3 text-sm font-ibm text-foreground">{u.name}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{u.rank}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{u.rank}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`rank-badge px-2 py-0.5 border rounded ${u.role === "instructor" ? "text-primary border-primary/40 bg-primary/10" : "text-muted-foreground border-tactical-border"}`}>
                           {u.role === "instructor" ? "Инструктор" : "Курсант"}
@@ -777,6 +820,41 @@ export function InstructorPanel() {
                           {u.is_whitelisted ? "Разрешён" : "Заблокирован"}
                         </button>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openEdit(u)}
+                            title="Редактировать"
+                            className="w-7 h-7 flex items-center justify-center border border-tactical-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                          >
+                            <Icon name="Pencil" size={12} />
+                          </button>
+                          {removeConfirm === u.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleRemove(u.id)}
+                                className="rank-badge text-red-400 border border-red-800 bg-red-900/20 px-2 py-0.5 hover:bg-red-900/40 transition-colors"
+                              >
+                                Подтвердить
+                              </button>
+                              <button
+                                onClick={() => setRemoveConfirm(null)}
+                                className="rank-badge text-muted-foreground border border-tactical-border px-2 py-0.5 hover:border-primary/40 transition-colors"
+                              >
+                                Отмена
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setRemoveConfirm(u.id)}
+                              title="Удалить из вайтлиста"
+                              className="w-7 h-7 flex items-center justify-center border border-tactical-border text-muted-foreground hover:text-red-400 hover:border-red-800 transition-colors"
+                            >
+                              <Icon name="UserX" size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -786,6 +864,92 @@ export function InstructorPanel() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {editUser && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4" onClick={() => setEditUser(null)}>
+          <div className="w-full max-w-md bg-tactical-panel border border-tactical-border p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-oswald text-base tracking-widest uppercase text-primary">Редактировать профиль</h3>
+              <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <Icon name="X" size={16} />
+              </button>
+            </div>
+            <p className="rank-badge text-muted-foreground">Static ID: {editUser.static_id}</p>
+            <form onSubmit={handleEditSave} className="space-y-3">
+              <div>
+                <label className="rank-badge text-muted-foreground block mb-1">Имя / Позывной</label>
+                <input
+                  className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Звание</label>
+                  <input
+                    className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    value={editForm.rank}
+                    onChange={(e) => setEditForm({ ...editForm, rank: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Роль</label>
+                  <select
+                    className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    value={editForm.role}
+                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "cadet" | "instructor" })}
+                  >
+                    <option value="cadet">Курсант</option>
+                    <option value="instructor">Инструктор</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="rank-badge text-muted-foreground block mb-1">Подразделение</label>
+                <input
+                  className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                  value={editForm.unit}
+                  onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="rank-badge text-muted-foreground block mb-1">Новый пароль <span className="text-muted-foreground">(оставьте пустым, чтобы не менять)</span></label>
+                <input
+                  type="password"
+                  className="w-full bg-tactical-card border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                  placeholder="••••••••"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                />
+              </div>
+              {editError && (
+                <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
+                  <Icon name="AlertTriangle" size={13} className="text-red-400" />
+                  <p className="text-xs text-red-400">{editError}</p>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {editLoading ? "Сохранение..." : "Сохранить"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditUser(null)}
+                  className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -76,11 +76,28 @@ export async function adminCreateUser(payload: {
   return data;
 }
 
-export async function adminUpdateUser(id: number, payload: { is_whitelisted?: boolean; role?: string }) {
+export async function adminUpdateUser(id: number, payload: {
+  is_whitelisted?: boolean;
+  role?: string;
+  name?: string;
+  rank?: string;
+  unit?: string;
+  password?: string;
+}) {
   const res = await fetch(`${ADMIN_URL}/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function adminRemoveUser(id: number) {
+  const res = await fetch(`${ADMIN_URL}/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error);

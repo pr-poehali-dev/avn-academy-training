@@ -7,7 +7,7 @@ import psycopg2
 SCHEMA = "t_p29017774_avn_academy_training"
 CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Session-Token",
 }
 
@@ -56,6 +56,8 @@ def handler(event: dict, context) -> dict:
         return create_user(event)
     if method == "PUT":
         return update_user(event, path)
+    if method == "DELETE":
+        return remove_user(event, path)
 
     return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Not found"})}
 
@@ -116,17 +118,48 @@ def update_user(event: dict, path: str) -> dict:
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Не указан ID пользователя"})}
 
     body = json.loads(event.get("body") or "{}")
-    is_whitelisted = body.get("is_whitelisted")
-    role = body.get("role")
 
     conn = get_conn()
     cur = conn.cursor()
 
-    if is_whitelisted is not None:
-        cur.execute(f"UPDATE {SCHEMA}.users SET is_whitelisted = %s, updated_at = NOW() WHERE id = %s", (bool(is_whitelisted), user_id))
-    if role in ("cadet", "instructor"):
-        cur.execute(f"UPDATE {SCHEMA}.users SET role = %s, updated_at = NOW() WHERE id = %s", (role, user_id))
+    fields = []
+    values = []
 
+    if body.get("is_whitelisted") is not None:
+        fields.append("is_whitelisted = %s"); values.append(bool(body["is_whitelisted"]))
+    if body.get("role") in ("cadet", "instructor"):
+        fields.append("role = %s"); values.append(body["role"])
+    if body.get("name", "").strip():
+        fields.append("name = %s"); values.append(body["name"].strip())
+    if body.get("rank", "").strip():
+        fields.append("rank = %s"); values.append(body["rank"].strip())
+    if "unit" in body:
+        fields.append("unit = %s"); values.append(str(body["unit"]).strip())
+    if body.get("password", "").strip():
+        fields.append("password_hash = %s"); values.append(hash_password(body["password"].strip()))
+
+    if not fields:
+        cur.close(); conn.close()
+        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нет данных для обновления"})}
+
+    fields.append("updated_at = NOW()")
+    values.append(user_id)
+    cur.execute(f"UPDATE {SCHEMA}.users SET {', '.join(fields)} WHERE id = %s", values)
+    conn.commit()
+    cur.close(); conn.close()
+    return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+
+def remove_user(event: dict, path: str) -> dict:
+    parts = path.rstrip("/").split("/")
+    user_id = parts[-1] if parts[-1].isdigit() else None
+    if not user_id:
+        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Не указан ID пользователя"})}
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(f"UPDATE {SCHEMA}.sessions SET expires_at = NOW() WHERE user_id = %s", (user_id,))
+    cur.execute(f"UPDATE {SCHEMA}.users SET is_whitelisted = FALSE, updated_at = NOW() WHERE id = %s", (user_id,))
     conn.commit()
     cur.close(); conn.close()
     return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
