@@ -235,34 +235,6 @@ export function Exams() {
         <StatCard label="Предстоящих" value={3} icon="Calendar" accent="text-yellow-400" />
         <StatCard label="Сдано" value={8} icon="CheckCircle" accent="text-green-400" />
         <StatCard label="Средний балл" value={4.4} icon="Award" accent="text-gold" />
-        <div className="animate-fade-in space-y-6">
-      <SectionHeader title="Практики" sub="Запросы на прохождение практических занятий" />
-      <div className="bg-tactical-card border border-tactical-border p-4">
-        <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">Новый запрос на практику</h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">Вид практики</label>
-            <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
-              <option>Отработка Штраф Задержание Ареста на инструкторе.</option>
-              <option>Огневая подготовка</option>
-              <option>Физическая подготовка</option>
-              <option>Строевая подготовка</option>
-              <option>Присяга</option>
-            </select>
-          </div>
-          <div>
-            <label className="rank-badge text-muted-foreground block mb-1">Предпочтительная дата</label>
-            <input type="date" className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors" />
-          </div>
-        </div>
-        <div className="mb-3">
-          <label className="rank-badge text-muted-foreground block mb-1">Цель практики</label>
-          <textarea className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors resize-none" rows={2} placeholder="Опишите цель и ожидаемый результат..." />
-        </div>
-        <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
-          Отправить запрос
-        </button>
-        )
       </div>
       <div className="space-y-3">
         <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground">Расписание экзаменов</h3>
