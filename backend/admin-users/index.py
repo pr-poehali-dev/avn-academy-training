@@ -112,9 +112,9 @@ def create_user(event: dict) -> dict:
 
 
 def update_user(event: dict, path: str) -> dict:
-    parts = path.rstrip("/").split("/")
-    user_id = parts[-1] if parts[-1].isdigit() else None
-    if not user_id:
+    qs = event.get("queryStringParameters") or {}
+    user_id = qs.get("id")
+    if not user_id or not str(user_id).isdigit():
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Не указан ID пользователя"})}
 
     body = json.loads(event.get("body") or "{}")
@@ -151,9 +151,9 @@ def update_user(event: dict, path: str) -> dict:
 
 
 def remove_user(event: dict, path: str) -> dict:
-    parts = path.rstrip("/").split("/")
-    user_id = parts[-1] if parts[-1].isdigit() else None
-    if not user_id:
+    qs = event.get("queryStringParameters") or {}
+    user_id = qs.get("id")
+    if not user_id or not str(user_id).isdigit():
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Не указан ID пользователя"})}
 
     conn = get_conn()

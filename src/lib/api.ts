@@ -84,7 +84,7 @@ export async function adminUpdateUser(id: number, payload: {
   unit?: string;
   password?: string;
 }) {
-  const res = await fetch(`${ADMIN_URL}/${id}`, {
+  const res = await fetch(`${ADMIN_URL}?id=${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
@@ -95,7 +95,7 @@ export async function adminUpdateUser(id: number, payload: {
 }
 
 export async function adminRemoveUser(id: number) {
-  const res = await fetch(`${ADMIN_URL}/${id}`, {
+  const res = await fetch(`${ADMIN_URL}?id=${id}`, {
     method: "DELETE",
     headers: { ...authHeaders() },
   });
