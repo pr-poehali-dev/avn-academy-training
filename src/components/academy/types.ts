@@ -61,10 +61,11 @@ export const MOCK_INSTRUCTOR_REQUESTS = [
 ];
 
 export const MOCK_MATERIALS = [
-  { id: 1, title: "Устав Вооружённых Сил", category: "Нормативные документы", pages: 214, icon: "BookMarked" },
-  { id: 2, title: "Тактика общевойскового боя", category: "Тактическая подготовка", pages: 180, icon: "Crosshair" },
-  { id: 3, title: "Наставление по физической подготовке", category: "Физподготовка", pages: 96, icon: "Activity" },
-  { id: 4, title: "Руководство по стрелковому оружию", category: "Огневая подготовка", pages: 156, icon: "Target" },
-  { id: 5, title: "Военная топография и навигация", category: "Ориентирование", pages: 120, icon: "Map" },
-  { id: 6, title: "Медицинская помощь в полевых условиях", category: "Медподготовка", pages: 88, icon: "Heart" },
+  { id: 1, title: "Вступительная лекция", category: "Лекции", pages: null, icon: "Presentation", url: "https://docs.google.com/presentation/d/1TunNnou9K9ZH_QDsmx0N-OKhSSRQot6o6J09dMgcp5c/edit?slide=id.p#slide=id.p" },
+  { id: 2, title: "Устав Вооружённых Сил", category: "Нормативные документы", pages: 214, icon: "BookMarked", url: null },
+  { id: 3, title: "Тактика общевойскового боя", category: "Тактическая подготовка", pages: 180, icon: "Crosshair", url: null },
+  { id: 4, title: "Наставление по физической подготовке", category: "Физподготовка", pages: 96, icon: "Activity", url: null },
+  { id: 5, title: "Руководство по стрелковому оружию", category: "Огневая подготовка", pages: 156, icon: "Target", url: null },
+  { id: 6, title: "Военная топография и навигация", category: "Ориентирование", pages: 120, icon: "Map", url: null },
+  { id: 7, title: "Медицинская помощь в полевых условиях", category: "Медподготовка", pages: 88, icon: "Heart", url: null },
 ];

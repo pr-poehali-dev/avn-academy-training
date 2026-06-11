@@ -86,7 +86,7 @@ export function Materials() {
       <SectionHeader title="Обучающие материалы" sub="Учебная библиотека академии АВНГ" />
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {MOCK_MATERIALS.map((m) => (
-          <div key={m.id} className="corner-mark bg-tactical-card border border-tactical-border p-4 card-glow hover:border-primary/40 transition-colors cursor-pointer group">
+          <div key={m.id} className="corner-mark bg-tactical-card border border-tactical-border p-4 card-glow hover:border-primary/40 transition-colors group">
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
                 <Icon name={m.icon} fallback="BookOpen" size={18} className="text-primary" />
@@ -97,11 +97,25 @@ export function Materials() {
               </div>
             </div>
             <div className="flex justify-between items-center border-t border-tactical-border pt-3">
-              <span className="rank-badge text-muted-foreground">{m.pages} стр.</span>
-              <button className="rank-badge text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
-                <Icon name="Download" size={12} />
-                Скачать
-              </button>
+              <span className="rank-badge text-muted-foreground">
+                {m.pages ? `${m.pages} стр.` : "Презентация"}
+              </span>
+              {m.url ? (
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rank-badge text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                >
+                  <Icon name="ExternalLink" size={12} />
+                  Открыть
+                </a>
+              ) : (
+                <button className="rank-badge text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
+                  <Icon name="Download" size={12} />
+                  Скачать
+                </button>
+              )}
             </div>
           </div>
         ))}
