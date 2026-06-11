@@ -344,7 +344,7 @@ export function Practices() {
             status: "pending",
           },
           {
-            title: "Физическая подготовка — стрельбище",
+            title: "Физическая подготовка — полигон",
             date: "28.06.2024",
             time: "08:00–12:00",
             location: "Учебный лес",
