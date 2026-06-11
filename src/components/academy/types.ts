@@ -202,7 +202,7 @@ export const MOCK_MATERIALS = [
   },
   {
     id: 2,
-    title: "Устав Вооружённых Сил",
+    title: "Лекция ФЗ о ФСВНГ и Внутреннему Уставу",
     category: "Лекции",
     pages: null,
     icon: "Presentation",
