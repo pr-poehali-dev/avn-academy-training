@@ -402,7 +402,7 @@ export function Exams() {
             </label>
             <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors">
               <option>
-                Экзамен теоретические тесты — Устав ФСВНГ — ФЗ о ФСВНГ.
+                Экзамен теоретические тесты — Устав ФСВНГ — ФЗ о ФСВНГ
               </option>
               <option>
                 Экзамен процедуры практики — Штраф — Задержание — Арест
