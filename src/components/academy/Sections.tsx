@@ -212,10 +212,7 @@ export function Materials() {
 export function Lectures() {
   return (
     <div className="animate-fade-in space-y-6">
-      <SectionHeader
-        title="Практики"
-        sub="Запросы на прохождение практических занятий"
-      />
+      <SectionHeader title="Лекции" sub="Запросы на прохождение лекций " />
       <div className="bg-tactical-card border border-tactical-border p-4">
         <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">
           Новый запрос на лекцию
