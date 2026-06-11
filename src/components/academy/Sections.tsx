@@ -239,16 +239,6 @@ export function Lectures() {
             />
           </div>
         </div>
-        <div className="mb-3">
-          <label className="rank-badge text-muted-foreground block mb-1">
-            Цель практики
-          </label>
-          <textarea
-            className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors resize-none"
-            rows={2}
-            placeholder="Опишите цель и ожидаемый результат..."
-          />
-        </div>
         <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
           Отправить запрос
         </button>
