@@ -37,8 +37,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             className="w-20 h-20 object-contain rounded-full border border-primary/40 mb-4"
             style={{ boxShadow: "0 0 24px rgba(160,30,45,0.3)" }}
           />
-          <h1 className="font-oswald text-2xl tracking-widest uppercase text-foreground">АКАДЕМИЯ АВНГ</h1>
-          <p className="text-xs font-mono text-muted-foreground tracking-[0.15em] uppercase mt-1">Учебный портал · Авторизация</p>
+          <h1 className="font-oswald text-2xl tracking-widest uppercase text-foreground">
+            РОСГВАРДИЯ АВНГ
+          </h1>
+          <p className="text-xs font-mono text-muted-foreground tracking-[0.15em] uppercase mt-1">
+            Учебный портал · Авторизация
+          </p>
         </div>
 
         <div className="corner-mark bg-tactical-card border border-tactical-border p-6 card-glow">
@@ -46,14 +50,22 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="rank-badge text-muted-foreground block mb-1.5">Static ID (6 цифр)</label>
+              <label className="rank-badge text-muted-foreground block mb-1.5">
+                Static ID (6 цифр)
+              </label>
               <div className="relative">
-                <Icon name="Hash" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Icon
+                  name="Hash"
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
                 <input
                   type="text"
                   maxLength={6}
                   value={staticId}
-                  onChange={(e) => setStaticId(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) =>
+                    setStaticId(e.target.value.replace(/\D/g, ""))
+                  }
                   placeholder="000000"
                   className="w-full bg-tactical-panel border border-tactical-border pl-9 pr-3 py-2.5 text-sm text-foreground font-mono tracking-widest focus:outline-none focus:border-primary transition-colors"
                   autoComplete="username"
@@ -62,9 +74,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             <div>
-              <label className="rank-badge text-muted-foreground block mb-1.5">Пароль</label>
+              <label className="rank-badge text-muted-foreground block mb-1.5">
+                Пароль
+              </label>
               <div className="relative">
-                <Icon name="Lock" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Icon
+                  name="Lock"
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
                 <input
                   type="password"
                   value={password}
@@ -78,7 +96,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
             {error && (
               <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
-                <Icon name="AlertTriangle" size={14} className="text-red-400 flex-shrink-0" />
+                <Icon
+                  name="AlertTriangle"
+                  size={14}
+                  className="text-red-400 flex-shrink-0"
+                />
                 <p className="text-xs text-red-400 font-ibm">{error}</p>
               </div>
             )}
