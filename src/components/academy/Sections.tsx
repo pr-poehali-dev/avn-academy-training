@@ -262,6 +262,7 @@ export function Exams() {
         <button className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors">
           Отправить запрос
         </button>
+        )
       </div>
       <div className="space-y-3">
         <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground">Расписание экзаменов</h3>
