@@ -224,28 +224,4 @@ export const MOCK_MATERIALS = [
     icon: "Presentation",
     url: "https://docs.google.com/presentation/d/1rk_v4cruYlBn4gd1zI2jgemZycuJnQqYseNnP5ARsG8/edit?slide=id.p#slide=id.p",
   },
-  {
-    id: 5,
-    title: "Руководство по стрелковому оружию",
-    category: "Огневая подготовка",
-    pages: 156,
-    icon: "Target",
-    url: null,
-  },
-  {
-    id: 6,
-    title: "Военная топография и навигация",
-    category: "Ориентирование",
-    pages: 120,
-    icon: "Map",
-    url: null,
-  },
-  {
-    id: 7,
-    title: "Медицинская помощь в полевых условиях",
-    category: "Медподготовка",
-    pages: 88,
-    icon: "Heart",
-    url: null,
-  },
 ];
