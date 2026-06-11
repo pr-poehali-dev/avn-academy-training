@@ -566,9 +566,6 @@ export function Reports() {
               <select className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary">
                 <option>Рапорт на повышение в звании</option>
                 <option>Запрос дополнительного обучения</option>
-                <option>Рапорт о происшествии</option>
-                <option>Заявление на отпуск</option>
-                <option>Прочее</option>
               </select>
             </div>
             <div>
