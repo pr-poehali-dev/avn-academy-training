@@ -210,19 +210,19 @@ export const MOCK_MATERIALS = [
   },
   {
     id: 3,
-    title: "Лекция ФЗ о ФСВНГ и Внутреннему Уставу",
+    title: "Лекция УК,ПК и КОАП",
     category: "Лекции",
     pages: null,
     icon: "Presentation",
-    url: "https://docs.google.com/document/d/1fir1wtveTcp5n5MQ-dJ25syfUWJ_QsyOaxjpjx6Vci8/edit?tab=t.0#heading=h.9m17jtlreqi2",
+    url: "https://docs.google.com/presentation/d/18NqJPtXdvhpl5ChP-1VRfBP77ZsCmVSYOhGbDVqdygA/edit?slide=id.g3ed1b51981d_0_21#slide=id.g3ed1b51981d_0_21",
   },
   {
     id: 4,
-    title: "Лекция ФЗ о ФСВНГ и Внутреннему Уставу",
+    title: "Лекция Допуск к закрытой и охраняемой территории",
     category: "Лекции",
     pages: null,
     icon: "Presentation",
-    url: "https://docs.google.com/document/d/1fir1wtveTcp5n5MQ-dJ25syfUWJ_QsyOaxjpjx6Vci8/edit?tab=t.0#heading=h.9m17jtlreqi2",
+    url: "https://docs.google.com/presentation/d/1rk_v4cruYlBn4gd1zI2jgemZycuJnQqYseNnP5ARsG8/edit?slide=id.p#slide=id.p",
   },
   {
     id: 5,
