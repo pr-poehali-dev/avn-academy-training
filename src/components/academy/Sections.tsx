@@ -19,7 +19,7 @@ export function Dashboard({ authUser }: { authUser: User }) {
   return (
     <div className="animate-fade-in space-y-6">
       <SectionHeader
-        title="Академии Войск Национальной Гвардии"
+        title="Академия Войск Национальной Гвардии"
         sub={`Добро пожаловать, ${authUser.name}`}
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
