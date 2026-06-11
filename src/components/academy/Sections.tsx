@@ -154,7 +154,6 @@ export function Lectures() {
           Отправить запрос
         </button>
       </div>
-        </div>
       </div>
       <div className="space-y-2">
         <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">Мои запросы</h3>
