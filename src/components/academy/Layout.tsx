@@ -1,14 +1,16 @@
 import Icon from "@/components/ui/icon";
 import { Section, UserRole, NAV_ITEMS } from "./types";
+import { User } from "@/lib/api";
 
 interface AppHeaderProps {
   role: UserRole;
+  authUser: User;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
-  onRoleChange: (role: UserRole) => void;
+  onLogout: () => void;
 }
 
-export function AppHeader({ role, sidebarOpen, onToggleSidebar, onRoleChange }: AppHeaderProps) {
+export function AppHeader({ role, authUser, sidebarOpen, onToggleSidebar, onLogout }: AppHeaderProps) {
   return (
     <header className="border-b border-tactical-border bg-tactical-panel flex-shrink-0 z-20 relative">
       <div className="flex items-center justify-between px-4 h-14">
@@ -36,28 +38,25 @@ export function AppHeader({ role, sidebarOpen, onToggleSidebar, onRoleChange }: 
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-1 border border-tactical-border bg-tactical-card px-1 py-1">
-            {(["cadet", "instructor"] as UserRole[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => onRoleChange(r)}
-                className={`rank-badge px-3 py-1 transition-colors ${role === r ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {r === "cadet" ? "Курсант" : "Инструктор"}
-              </button>
-            ))}
-          </div>
           <div className="flex items-center gap-2 border border-tactical-border bg-tactical-card px-3 py-1.5">
             <div className="w-5 h-5 bg-primary/20 border border-primary/30 flex items-center justify-center">
-              <Icon name="User" size={10} className="text-primary" />
+              <Icon name={role === "instructor" ? "Shield" : "User"} size={10} className="text-primary" />
             </div>
-            <span className="rank-badge text-foreground hidden md:block">
-              {role === "cadet" ? "Алексеев А.В." : "Кап. Воронов В.И."}
-            </span>
+            <div className="hidden md:block">
+              <span className="rank-badge text-foreground">{authUser.name}</span>
+              <span className="rank-badge text-muted-foreground ml-2">[{authUser.static_id}]</span>
+            </div>
           </div>
           <button className="text-muted-foreground hover:text-yellow-400 transition-colors relative">
             <Icon name="Bell" size={16} />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 text-[7px] font-bold text-black flex items-center justify-center rounded-full">3</span>
+          </button>
+          <button
+            onClick={onLogout}
+            title="Выйти"
+            className="text-muted-foreground hover:text-red-400 transition-colors"
+          >
+            <Icon name="LogOut" size={16} />
           </button>
         </div>
       </div>

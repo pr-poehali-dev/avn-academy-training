@@ -1,8 +1,8 @@
 import { useState } from "react";
 import Icon from "@/components/ui/icon";
 import { StatusBadge, GradeCircle, SectionHeader, StatCard } from "./UIComponents";
+import { User } from "@/lib/api";
 import {
-  MOCK_CADET,
   MOCK_LECTURES,
   MOCK_REPORTS,
   MOCK_GRADES,
@@ -10,13 +10,13 @@ import {
   MOCK_MATERIALS,
 } from "./types";
 
-export function Dashboard() {
+export function Dashboard({ authUser }: { authUser: User }) {
   return (
     <div className="animate-fade-in space-y-6">
-      <SectionHeader title="Учебный дашборд" sub={`Добро пожаловать, ${MOCK_CADET.name}`} />
+      <SectionHeader title="Учебный дашборд" sub={`Добро пожаловать, ${authUser.name}`} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Средний балл" value={MOCK_CADET.grade_avg} icon="Star" accent="text-gold" />
-        <StatCard label="Пройдено тем" value={`${MOCK_CADET.completed}/${MOCK_CADET.total}`} icon="CheckSquare" accent="text-green-400" />
+        <StatCard label="Средний балл" value={4.3} icon="Star" accent="text-gold" />
+        <StatCard label="Пройдено тем" value="12/20" icon="CheckSquare" accent="text-green-400" />
         <StatCard label="Активных рапортов" value={2} icon="FileText" accent="text-yellow-400" />
         <StatCard label="До экзамена" value="5 дн." icon="Clock" accent="text-primary" />
       </div>
@@ -25,9 +25,9 @@ export function Dashboard() {
           <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-3">Личные данные</h3>
           <div className="space-y-2">
             {[
-              { label: "Звание", value: MOCK_CADET.rank },
-              { label: "Подразделение", value: MOCK_CADET.unit },
-              { label: "Личный номер", value: MOCK_CADET.id },
+              { label: "Звание", value: authUser.rank || "—" },
+              { label: "Подразделение", value: authUser.unit || "—" },
+              { label: "Static ID", value: authUser.static_id },
             ].map((item) => (
               <div key={item.label} className="flex justify-between items-center py-1.5 border-b border-tactical-border last:border-0">
                 <span className="text-muted-foreground text-xs uppercase tracking-wider font-mono">{item.label}</span>
@@ -409,7 +409,7 @@ export function Grades() {
   );
 }
 
-export function Profile() {
+export function Profile({ authUser }: { authUser: User }) {
   return (
     <div className="animate-fade-in space-y-6">
       <SectionHeader title="Профиль курсанта" sub="Личные данные и служебная документация" />
@@ -418,22 +418,21 @@ export function Profile() {
           <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-4">
             <Icon name="User" size={36} className="text-primary" />
           </div>
-          <h3 className="font-oswald text-lg tracking-wide text-foreground">{MOCK_CADET.name}</h3>
-          <p className="text-gold font-mono text-sm mt-1">{MOCK_CADET.rank}</p>
+          <h3 className="font-oswald text-lg tracking-wide text-foreground">{authUser.name}</h3>
+          <p className="text-gold font-mono text-sm mt-1">{authUser.rank || "—"}</p>
           <div className="mt-3 px-3 py-1 bg-primary/10 border border-primary/20">
-            <span className="rank-badge text-primary">{MOCK_CADET.id}</span>
+            <span className="rank-badge text-primary">ID: {authUser.static_id}</span>
           </div>
         </div>
         <div className="md:col-span-2 bg-tactical-card border border-tactical-border p-4">
           <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground mb-4">Служебные данные</h3>
           <div className="space-y-3">
             {[
-              { label: "Полное имя", value: "Алексеев Андрей Викторович" },
-              { label: "Звание", value: "Рядовой" },
-              { label: "Подразделение", value: "1-й учебный взвод, Рота А" },
-              { label: "Личный номер", value: "КУР-2024-0147" },
-              { label: "Дата зачисления", value: "01.09.2024" },
-              { label: "Куратор", value: "Кап. Воронов В.И." },
+              { label: "Имя", value: authUser.name },
+              { label: "Звание", value: authUser.rank || "—" },
+              { label: "Подразделение", value: authUser.unit || "—" },
+              { label: "Static ID", value: authUser.static_id },
+              { label: "Роль", value: authUser.role === "instructor" ? "Инструктор" : "Курсант" },
             ].map((item) => (
               <div key={item.label} className="flex justify-between items-center py-2 border-b border-tactical-border last:border-0">
                 <span className="rank-badge text-muted-foreground">{item.label}</span>
@@ -483,26 +482,75 @@ export function Profile() {
 }
 
 export function InstructorPanel() {
-  const [activeTab, setActiveTab] = useState<"requests" | "cadets" | "schedule">("requests");
+  const [activeTab, setActiveTab] = useState<"requests" | "cadets" | "schedule" | "whitelist">("requests");
+  const [wlUsers, setWlUsers] = useState<import("@/lib/api").AdminUser[]>([]);
+  const [wlLoading, setWlLoading] = useState(false);
+  const [wlLoaded, setWlLoaded] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [form, setForm] = useState({ static_id: "", password: "", name: "", rank: "Рядовой", unit: "", role: "cadet" as "cadet" | "instructor" });
+  const [formError, setFormError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+
+  const loadWhitelist = async () => {
+    if (wlLoaded) return;
+    setWlLoading(true);
+    try {
+      const { adminListUsers } = await import("@/lib/api");
+      const users = await adminListUsers();
+      setWlUsers(users);
+      setWlLoaded(true);
+    } catch (e) { console.error(e); }
+    setWlLoading(false);
+  };
+
+  const handleTabClick = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    if (tab === "whitelist") loadWhitelist();
+  };
+
+  const toggleWhitelist = async (id: number, current: boolean) => {
+    const { adminUpdateUser } = await import("@/lib/api");
+    await adminUpdateUser(id, { is_whitelisted: !current });
+    setWlUsers((prev) => prev.map((u) => u.id === id ? { ...u, is_whitelisted: !current } : u));
+  };
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError("");
+    setFormLoading(true);
+    try {
+      const { adminCreateUser } = await import("@/lib/api");
+      await adminCreateUser({ ...form, is_whitelisted: true });
+      setShowAddForm(false);
+      setForm({ static_id: "", password: "", name: "", rank: "Рядовой", unit: "", role: "cadet" });
+      setWlLoaded(false);
+      loadWhitelist();
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : "Ошибка");
+    }
+    setFormLoading(false);
+  };
+
   return (
     <div className="animate-fade-in space-y-6">
       <SectionHeader title="Панель инструктора" sub="Управление курсантами, запросами и расписанием" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Новых запросов" value={4} icon="Bell" accent="text-yellow-400" />
-        <StatCard label="Курсантов" value={28} icon="Users" accent="text-primary" />
+        <StatCard label="Курсантов" value={wlUsers.filter(u => u.role === "cadet").length || 28} icon="Users" accent="text-primary" />
         <StatCard label="Занятий сегодня" value={3} icon="Calendar" accent="text-green-400" />
         <StatCard label="Рапортов на рассм." value={2} icon="FileText" accent="text-gold" />
       </div>
-      <div className="flex gap-1 border-b border-tactical-border">
+      <div className="flex gap-1 border-b border-tactical-border overflow-x-auto">
         {([
           { id: "requests", label: "Запросы" },
           { id: "cadets", label: "Курсанты" },
           { id: "schedule", label: "Расписание" },
+          { id: "whitelist", label: "Вайтлист" },
         ] as const).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`font-oswald text-sm tracking-widest uppercase px-4 py-2 transition-colors border-b-2 ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            onClick={() => handleTabClick(tab.id)}
+            className={`font-oswald text-sm tracking-widest uppercase px-4 py-2 transition-colors border-b-2 whitespace-nowrap ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {tab.label}
           </button>
@@ -595,6 +643,149 @@ export function InstructorPanel() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {activeTab === "whitelist" && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              <Icon name="Plus" size={14} />
+              Добавить пользователя
+            </button>
+          </div>
+          {showAddForm && (
+            <form onSubmit={handleAddUser} className="bg-tactical-card border border-primary/40 p-4 space-y-3 animate-fade-in">
+              <h3 className="font-oswald text-sm tracking-widest uppercase text-primary">Новый пользователь</h3>
+              <div className="grid md:grid-cols-2 gap-3">
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Static ID (6 цифр)</label>
+                  <input
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:border-primary transition-colors"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={form.static_id}
+                    onChange={(e) => setForm({ ...form, static_id: e.target.value.replace(/\D/g, "") })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Пароль</label>
+                  <input
+                    type="password"
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    placeholder="Придумайте пароль"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Имя / Позывной</label>
+                  <input
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    placeholder="Фамилия И.О."
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Звание</label>
+                  <input
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    placeholder="Рядовой"
+                    value={form.rank}
+                    onChange={(e) => setForm({ ...form, rank: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Подразделение</label>
+                  <input
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    placeholder="1-й учебный взвод"
+                    value={form.unit}
+                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="rank-badge text-muted-foreground block mb-1">Роль</label>
+                  <select
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-2 text-sm text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value as "cadet" | "instructor" })}
+                  >
+                    <option value="cadet">Курсант</option>
+                    <option value="instructor">Инструктор</option>
+                  </select>
+                </div>
+              </div>
+              {formError && (
+                <div className="flex items-center gap-2 bg-red-900/20 border border-red-800 px-3 py-2">
+                  <Icon name="AlertTriangle" size={13} className="text-red-400" />
+                  <p className="text-xs text-red-400">{formError}</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-6 hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {formLoading ? "Сохранение..." : "Добавить"}
+                </button>
+                <button type="button" onClick={() => setShowAddForm(false)} className="border border-tactical-border text-muted-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:border-primary/40 transition-colors">
+                  Отмена
+                </button>
+              </div>
+            </form>
+          )}
+          {wlLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Icon name="Loader2" size={24} className="text-primary animate-spin" />
+            </div>
+          ) : (
+            <div className="bg-tactical-card border border-tactical-border overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-tactical-border bg-tactical-panel">
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Static ID</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Имя</th>
+                    <th className="text-left px-4 py-3 rank-badge text-muted-foreground hidden md:table-cell">Звание</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Роль</th>
+                    <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Вайтлист</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wlUsers.map((u) => (
+                    <tr key={u.id} className="border-b border-tactical-border last:border-0 hover:bg-primary/5 transition-colors">
+                      <td className="px-4 py-3 font-mono text-sm text-primary">{u.static_id}</td>
+                      <td className="px-4 py-3 text-sm font-ibm text-foreground">{u.name}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{u.rank}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`rank-badge px-2 py-0.5 border rounded ${u.role === "instructor" ? "text-primary border-primary/40 bg-primary/10" : "text-muted-foreground border-tactical-border"}`}>
+                          {u.role === "instructor" ? "Инструктор" : "Курсант"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => toggleWhitelist(u.id, u.is_whitelisted)}
+                          className={`rank-badge px-2 py-0.5 border rounded transition-colors ${u.is_whitelisted ? "text-green-400 border-green-800 bg-green-900/20 hover:bg-green-900/40" : "text-red-400 border-red-800 bg-red-900/20 hover:bg-red-900/40"}`}
+                        >
+                          {u.is_whitelisted ? "Разрешён" : "Заблокирован"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {wlUsers.length === 0 && (
+                <p className="text-center text-muted-foreground rank-badge py-8">Пользователей нет</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

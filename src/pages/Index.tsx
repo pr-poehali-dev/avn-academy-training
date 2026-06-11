@@ -12,27 +12,31 @@ import {
   Profile,
   InstructorPanel,
 } from "@/components/academy/Sections";
+import { User } from "@/lib/api";
 
-export default function Index() {
-  const [section, setSection] = useState<Section>("dashboard");
-  const [role, setRole] = useState<UserRole>("cadet");
+interface IndexProps {
+  authUser: User;
+  onLogout: () => void;
+}
+
+export default function Index({ authUser, onLogout }: IndexProps) {
+  const [section, setSection] = useState<Section>(
+    authUser.role === "instructor" ? "instructor" : "dashboard"
+  );
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleRoleChange = (r: UserRole) => {
-    setRole(r);
-    setSection(r === "instructor" ? "instructor" : "dashboard");
-  };
+  const role = authUser.role as UserRole;
 
   const renderSection = () => {
     switch (section) {
-      case "dashboard": return <Dashboard />;
+      case "dashboard": return <Dashboard authUser={authUser} />;
       case "materials": return <Materials />;
       case "lectures": return <Lectures />;
       case "practices": return <Practices />;
       case "exams": return <Exams />;
       case "reports": return <Reports />;
       case "grades": return <Grades />;
-      case "profile": return <Profile />;
+      case "profile": return <Profile authUser={authUser} />;
       case "instructor": return <InstructorPanel />;
     }
   };
@@ -41,9 +45,10 @@ export default function Index() {
     <div className="min-h-screen bg-background flex flex-col">
       <AppHeader
         role={role}
+        authUser={authUser}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        onRoleChange={handleRoleChange}
+        onLogout={onLogout}
       />
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar
