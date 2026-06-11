@@ -410,8 +410,6 @@ export function Exams() {
               <option>
                 Экзамен теоретические тесты — Штраф — Задержание — Арест
               </option>
-              <option>Строевая подготовка</option>
-              <option>Присяга</option>
             </select>
           </div>
           <div>
