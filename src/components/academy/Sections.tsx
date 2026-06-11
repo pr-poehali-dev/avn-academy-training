@@ -350,6 +350,20 @@ export function Practices() {
             location: "Учебный лес",
             status: "pending",
           },
+          {
+            title: "Физическая подготовка — полигон",
+            date: "28.06.2024",
+            time: "08:00–12:00",
+            location: "Учебный лес",
+            status: "pending",
+          },
+          {
+            title: "Физическая подготовка — полигон",
+            date: "28.06.2024",
+            time: "08:00–12:00",
+            location: "Учебный лес",
+            status: "pending",
+          },
         ].map((p, i) => (
           <div
             key={i}
