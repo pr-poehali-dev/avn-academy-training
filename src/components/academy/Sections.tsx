@@ -296,8 +296,8 @@ export function Practices() {
               <option>Отработка Штраф Задержание Ареста на инструкторе.</option>
               <option>Огневая подготовка</option>
               <option>Физическая подготовка</option>
-              <option>Топография</option>
-              <option>Медицинская подготовка</option>
+              <option>Строевая подготовка</option>
+              <option>Присяга</option>
             </select>
           </div>
           <div>
