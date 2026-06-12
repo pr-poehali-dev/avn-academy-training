@@ -1,6 +1,7 @@
 const AUTH_URL = "https://functions.poehali.dev/eef502e8-b5b4-49f1-9aca-68ce6729a515";
 const ADMIN_URL = "https://functions.poehali.dev/11facde9-3268-42cd-b599-f4eb9ff2ad36";
 const REQUESTS_URL = "https://functions.poehali.dev/737b0f42-c3de-4eb2-b632-1a02ff20f43c";
+const NOTIFICATIONS_URL = "https://functions.poehali.dev/ba6ad873-843b-4935-b62f-12d751f7675f";
 
 export function getToken(): string | null {
   return localStorage.getItem("avng_token");
@@ -207,6 +208,44 @@ export async function createGrade(payload: {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+// ===== Notifications API =====
+
+export interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export async function fetchNotifications(): Promise<{ notifications: Notification[]; unread_count: number }> {
+  const res = await fetch(NOTIFICATIONS_URL, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function markAllNotificationsRead() {
+  const res = await fetch(`${NOTIFICATIONS_URL}?action=read`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function markNotificationRead(id: number) {
+  const res = await fetch(`${NOTIFICATIONS_URL}?action=read_one&id=${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error);

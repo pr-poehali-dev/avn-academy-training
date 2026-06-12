@@ -1,6 +1,7 @@
 import Icon from "@/components/ui/icon";
 import { Section, UserRole, NAV_ITEMS } from "./types";
 import { User } from "@/lib/api";
+import { NotificationBell } from "./NotificationBell";
 
 interface AppHeaderProps {
   role: UserRole;
@@ -61,12 +62,7 @@ export function AppHeader({
               </span>
             </div>
           </div>
-          <button className="text-muted-foreground hover:text-yellow-400 transition-colors relative">
-            <Icon name="Bell" size={16} />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 text-[7px] font-bold text-black flex items-center justify-center rounded-full">
-              3
-            </span>
-          </button>
+          <NotificationBell />
           <button
             onClick={onLogout}
             title="Выйти"

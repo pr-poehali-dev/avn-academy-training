@@ -144,6 +144,24 @@ def handler(event: dict, context) -> dict:
                         WHERE id = %s""",
                     (status, comment or None, user["id"], request_id),
                 )
+                # Получаем user_id курсанта и тему запроса
+                cur.execute(
+                    f"SELECT user_id, subject FROM {SCHEMA}.requests WHERE id = %s",
+                    (request_id,),
+                )
+                req_row = cur.fetchone()
+                if req_row:
+                    cadet_id, subject = req_row
+                    status_text = "одобрен" if status == "approved" else "отклонён"
+                    notif_message = f'Инструктор {user["name"]} {status_text} ваш запрос на тему "{subject}".'
+                    if comment:
+                        notif_message += f" Комментарий: {comment}"
+                    cur.execute(
+                        f"""INSERT INTO {SCHEMA}.notifications (user_id, type, title, message)
+                            VALUES (%s, %s, %s, %s)""",
+                        (cadet_id, "request_reviewed",
+                         f"Запрос {status_text}", notif_message),
+                    )
             conn.commit()
             return {"statusCode": 200, "headers": cors_headers(), "body": json.dumps({"success": True})}
 
@@ -216,6 +234,17 @@ def handler(event: dict, context) -> dict:
                             WHERE id = %s""",
                         (user["id"], request_id),
                     )
+                # Уведомление курсанту об оценке
+                type_map = {"lecture": "лекция", "practice": "практика", "exam": "экзамен"}
+                type_text = type_map.get(grade_type, grade_type)
+                notif_message = f'Инструктор {user["name"]} выставил оценку {grade_val} по предмету "{subject}" ({type_text}).'
+                if comment:
+                    notif_message += f" Комментарий: {comment}"
+                cur.execute(
+                    f"""INSERT INTO {SCHEMA}.notifications (user_id, type, title, message)
+                        VALUES (%s, %s, %s, %s)""",
+                    (cadet_id, "grade_added", f"Новая оценка: {grade_val}", notif_message),
+                )
             conn.commit()
             return {"statusCode": 200, "headers": cors_headers(), "body": json.dumps({"success": True, "id": new_id})}
 
