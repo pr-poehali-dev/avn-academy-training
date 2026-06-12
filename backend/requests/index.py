@@ -122,6 +122,19 @@ def handler(event: dict, context) -> dict:
                     (user["id"], req_type, subject, description or None, preferred_date),
                 )
                 new_id = cur.fetchone()[0]
+                # Уведомление всем инструкторам о новом запросе
+                type_map = {"lecture": "лекция", "practice": "практика", "exam": "экзамен", "report": "рапорт"}
+                type_text = type_map.get(req_type, req_type)
+                cur.execute(f"SELECT id FROM {SCHEMA}.users WHERE role = 'instructor'")
+                instructor_ids = [row[0] for row in cur.fetchall()]
+                for inst_id in instructor_ids:
+                    cur.execute(
+                        f"""INSERT INTO {SCHEMA}.notifications (user_id, type, title, message)
+                            VALUES (%s, %s, %s, %s)""",
+                        (inst_id, "new_request",
+                         f"Новый запрос: {type_text}",
+                         f'{user["rank"]} {user["name"]} подал запрос на тему "{subject}" ({type_text}).'),
+                    )
             conn.commit()
             return {"statusCode": 200, "headers": cors_headers(), "body": json.dumps({"success": True, "id": new_id})}
 

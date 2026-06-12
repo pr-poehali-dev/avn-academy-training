@@ -58,6 +58,7 @@ export function NotificationBell() {
   const typeIcon = (type: string) => {
     if (type === "grade_added") return "Star";
     if (type === "request_reviewed") return "FileCheck";
+    if (type === "new_request") return "FilePlus";
     return "Bell";
   };
 
