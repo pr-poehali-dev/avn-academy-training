@@ -2,17 +2,52 @@ import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead, Notification } from "@/lib/api";
 
+function playNotificationSound() {
+  try {
+    const ctx = new AudioContext();
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    o1.connect(gain);
+    o2.connect(gain);
+    gain.connect(ctx.destination);
+    o1.type = "sine";
+    o2.type = "sine";
+    o1.frequency.setValueAtTime(880, ctx.currentTime);
+    o1.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15);
+    o2.frequency.setValueAtTime(1100, ctx.currentTime + 0.18);
+    o2.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    o1.start(ctx.currentTime);
+    o1.stop(ctx.currentTime + 0.18);
+    o2.start(ctx.currentTime + 0.18);
+    o2.stop(ctx.currentTime + 0.4);
+  } catch (_e) { /* silent */ }
+}
+
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [ringing, setRinging] = useState(false);
+  const prevUnreadRef = useRef<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     try {
       const data = await fetchNotifications();
       setNotifications(data.notifications);
-      setUnreadCount(data.unread_count);
+      setUnreadCount((prev) => {
+        const incoming = data.unread_count;
+        if (prevUnreadRef.current !== null && incoming > prevUnreadRef.current) {
+          playNotificationSound();
+          setRinging(true);
+          setTimeout(() => setRinging(false), 1200);
+        }
+        prevUnreadRef.current = incoming;
+        return incoming;
+      });
     } catch (_e) { /* silent */ }
   };
 
@@ -32,14 +67,11 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  const handleOpen = () => {
-    setOpen((v) => !v);
-  };
-
   const handleMarkAll = async () => {
     await markAllNotificationsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setUnreadCount(0);
+    prevUnreadRef.current = 0;
   };
 
   const handleMarkOne = async (id: number) => {
@@ -47,7 +79,11 @@ export function NotificationBell() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    setUnreadCount((c) => Math.max(0, c - 1));
+    setUnreadCount((c) => {
+      const next = Math.max(0, c - 1);
+      prevUnreadRef.current = next;
+      return next;
+    });
   };
 
   const formatTime = (iso: string) => {
@@ -64,13 +100,37 @@ export function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
+      <style>{`
+        @keyframes bell-ring {
+          0%   { transform: rotate(0deg); }
+          10%  { transform: rotate(18deg); }
+          20%  { transform: rotate(-16deg); }
+          30%  { transform: rotate(14deg); }
+          40%  { transform: rotate(-12deg); }
+          50%  { transform: rotate(10deg); }
+          60%  { transform: rotate(-8deg); }
+          70%  { transform: rotate(6deg); }
+          80%  { transform: rotate(-4deg); }
+          90%  { transform: rotate(2deg); }
+          100% { transform: rotate(0deg); }
+        }
+        .bell-ringing { animation: bell-ring 0.6s ease-in-out; }
+        @keyframes badge-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.2); }
+        }
+        .badge-pulsing { animation: badge-pulse 0.6s ease-in-out infinite; }
+      `}</style>
+
       <button
-        onClick={handleOpen}
-        className="text-muted-foreground hover:text-yellow-400 transition-colors relative"
+        onClick={() => setOpen((v) => !v)}
+        className={`transition-colors relative ${unreadCount > 0 ? "text-yellow-400" : "text-muted-foreground hover:text-yellow-400"}`}
       >
-        <Icon name="Bell" size={16} />
+        <span className={ringing ? "bell-ringing inline-block origin-top" : "inline-block"}>
+          <Icon name="Bell" size={16} />
+        </span>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-yellow-400 text-[7px] font-bold text-black flex items-center justify-center rounded-full">
+          <span className={`absolute -top-1 -right-1 w-3.5 h-3.5 bg-yellow-400 text-[7px] font-bold text-black flex items-center justify-center rounded-full ${ringing ? "badge-pulsing" : ""}`}>
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
