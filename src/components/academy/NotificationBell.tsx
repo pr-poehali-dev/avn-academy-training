@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead, Notification } from "@/lib/api";
+import { Section } from "./types";
 
 function playNotificationSound() {
   try {
@@ -26,7 +27,22 @@ function playNotificationSound() {
   } catch (_e) { /* silent */ }
 }
 
-export function NotificationBell() {
+function getSectionForNotif(n: Notification): { section: Section; requestId?: number } | null {
+  const match = n.message.match(/request_id:(\d+)/);
+  const requestId = match ? parseInt(match[1]) : undefined;
+  if (n.type === "new_request") return { section: "instructor", requestId };
+  if (n.type === "request_reviewed") {
+    if (n.message.includes("лекци")) return { section: "lectures", requestId };
+    if (n.message.includes("практик")) return { section: "practices", requestId };
+    if (n.message.includes("экзамен") || n.message.includes("Экзамен")) return { section: "exams", requestId };
+    if (n.message.includes("рапорт") || n.message.includes("Рапорт")) return { section: "reports", requestId };
+    return { section: "instructor", requestId };
+  }
+  if (n.type === "grade_added") return { section: "grades" };
+  return null;
+}
+
+export function NotificationBell({ onNavigate }: { onNavigate: (section: Section, requestId?: number) => void }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -165,7 +181,11 @@ export function NotificationBell() {
                   className={`px-3 py-2.5 border-b border-tactical-border/50 flex gap-2.5 cursor-pointer hover:bg-primary/5 transition-colors ${
                     !n.is_read ? "bg-primary/5" : ""
                   }`}
-                  onClick={() => !n.is_read && handleMarkOne(n.id)}
+                  onClick={() => {
+                    if (!n.is_read) handleMarkOne(n.id);
+                    const dest = getSectionForNotif(n);
+                    if (dest) { setOpen(false); onNavigate(dest.section, dest.requestId); }
+                  }}
                 >
                   <div className={`mt-0.5 flex-shrink-0 ${!n.is_read ? "text-yellow-400" : "text-muted-foreground"}`}>
                     <Icon name={typeIcon(n.type)} size={14} />

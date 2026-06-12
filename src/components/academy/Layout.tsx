@@ -9,6 +9,7 @@ interface AppHeaderProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   onLogout: () => void;
+  onNavigate: (section: import("./types").Section, requestId?: number) => void;
 }
 
 export function AppHeader({
@@ -17,6 +18,7 @@ export function AppHeader({
   sidebarOpen,
   onToggleSidebar,
   onLogout,
+  onNavigate,
 }: AppHeaderProps) {
   return (
     <header className="border-b border-tactical-border bg-tactical-panel flex-shrink-0 z-20 relative">
@@ -62,7 +64,7 @@ export function AppHeader({
               </span>
             </div>
           </div>
-          <NotificationBell />
+          <NotificationBell onNavigate={onNavigate} />
           <button
             onClick={onLogout}
             title="Выйти"

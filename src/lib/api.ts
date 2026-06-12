@@ -242,6 +242,36 @@ export async function markAllNotificationsRead() {
   return data;
 }
 
+// ===== Ratings API =====
+const RATINGS_URL = "https://functions.poehali.dev/65d99839-db00-4a29-9512-4221d25f1d62";
+
+export interface InstructorRating {
+  id: number;
+  name: string;
+  rank: string;
+  unit: string;
+  avg_rating: number | null;
+  rating_count: number;
+}
+
+export async function fetchRatings(): Promise<{ instructors: InstructorRating[]; my_ratings: Record<number, { rating: number; comment: string | null }> }> {
+  const res = await fetch(RATINGS_URL, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function rateInstructor(instructor_id: number, rating: number, comment?: string) {
+  const res = await fetch(RATINGS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ instructor_id, rating, comment }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
 export async function markNotificationRead(id: number) {
   const res = await fetch(`${NOTIFICATIONS_URL}?action=read_one&id=${id}`, {
     method: "PUT",

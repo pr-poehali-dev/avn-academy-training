@@ -13,8 +13,11 @@ import {
   reviewRequest,
   fetchGrades,
   createGrade,
+  fetchRatings,
+  rateInstructor,
   TrainingRequest,
   Grade,
+  InstructorRating,
 } from "@/lib/api";
 import { MOCK_MATERIALS } from "./types";
 
@@ -39,12 +42,27 @@ function avg(grades: Grade[]) {
 function RequestCard({
   r,
   icon,
+  highlight,
+  onInstructorReview,
 }: {
   r: TrainingRequest;
   icon: string;
+  highlight?: boolean;
+  onInstructorReview?: (r: TrainingRequest) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (highlight) setExpanded(true);
+  }, [highlight]);
+
   return (
-    <div className="bg-tactical-card border border-tactical-border p-4 hover:border-primary/30 transition-colors">
+    <div
+      className={`bg-tactical-card border p-4 transition-colors cursor-pointer ${
+        highlight ? "border-primary animate-pulse-once" : "border-tactical-border hover:border-primary/30"
+      }`}
+      onClick={() => setExpanded((v) => !v)}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -56,13 +74,44 @@ function RequestCard({
               {TYPE_LABEL[r.type]} · {fmt(r.created_at)}
               {r.preferred_date && ` · Дата: ${fmt(r.preferred_date)}`}
             </p>
-            {r.instructor_comment && (
-              <p className="text-xs text-muted-foreground mt-1 italic">"{r.instructor_comment}"</p>
+            {r.cadet_name && (
+              <p className="text-xs text-muted-foreground font-mono">{r.cadet_rank} {r.cadet_name}</p>
             )}
           </div>
         </div>
-        <StatusBadge status={r.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={r.status} />
+          <Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={14} className="text-muted-foreground" />
+        </div>
       </div>
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-tactical-border space-y-2 animate-fade-in">
+          {r.description && (
+            <p className="text-xs text-muted-foreground font-ibm">
+              <span className="text-foreground font-semibold">Пояснение: </span>{r.description}
+            </p>
+          )}
+          {r.instructor_comment && (
+            <p className="text-xs text-muted-foreground mt-1 italic">
+              <span className="text-foreground font-semibold not-italic">Комментарий инструктора: </span>
+              "{r.instructor_comment}"
+            </p>
+          )}
+          {r.reviewer_name && (
+            <p className="text-xs text-muted-foreground font-mono">Рассмотрел: {r.reviewer_name}</p>
+          )}
+          {onInstructorReview && r.status === "pending" && (
+            <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="bg-green-700 hover:bg-green-600 text-white font-oswald text-xs tracking-widest uppercase py-1.5 px-3 transition-colors"
+                onClick={() => onInstructorReview(r)}
+              >
+                Перейти к рассмотрению
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -181,7 +230,7 @@ function RequestForm({
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-export function Dashboard({ authUser }: { authUser: User }) {
+export function Dashboard({ authUser, onNavigate }: { authUser: User; onNavigate?: (s: import("./types").Section, id?: number) => void }) {
   const [requests, setRequests] = useState<TrainingRequest[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
 
@@ -287,203 +336,172 @@ export function Materials() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LECTURES
-// ═══════════════════════════════════════════════════════════════════════════════
-export function Lectures() {
+// ─── Generic section for cadet request types ──────────────────────────────────
+function RequestSection({
+  authUser,
+  type,
+  icon,
+  title,
+  sub,
+  subjectOptions,
+  newLabel,
+  emptyText,
+  highlightRequestId,
+}: {
+  authUser: User;
+  type: "lecture" | "practice" | "exam" | "report";
+  icon: string;
+  title: string;
+  sub: string;
+  subjectOptions: string[];
+  newLabel: string;
+  emptyText: string;
+  highlightRequestId?: number;
+}) {
   const [requests, setRequests] = useState<TrainingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const isInstructor = authUser.role === "instructor";
 
   const load = useCallback(async () => {
     setLoading(true);
     const all = await fetchRequests().catch(() => []);
-    setRequests(all.filter((r) => r.type === "lecture"));
+    setRequests(all.filter((r) => r.type === type));
     setLoading(false);
-  }, []);
+  }, [type]);
 
   useEffect(() => { load(); }, [load]);
 
   return (
     <div className="animate-fade-in space-y-6">
       <div className="flex items-center justify-between">
-        <SectionHeader title="Лекции" sub="Запросы на прохождение лекций" />
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <Icon name="Plus" size={14} />Новый запрос
-        </button>
+        <SectionHeader title={title} sub={sub} />
+        {!isInstructor && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
+          >
+            <Icon name="Plus" size={14} />{newLabel}
+          </button>
+        )}
       </div>
-      {showForm && (
+      {!isInstructor && showForm && (
         <RequestForm
-          type="lecture"
-          subjectOptions={[
-            "Прослушать вступительную лекцию",
-            "Лекция ФЗ о ФСВНГ и Внутреннему Уставу",
-            "Лекция УК, ПК и КоАП",
-            "Лекция о допуске к закрытой территории",
-          ]}
+          type={type}
+          subjectOptions={subjectOptions}
           onSubmit={() => { setShowForm(false); load(); }}
           onClose={() => setShowForm(false)}
         />
       )}
-      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет запросов на лекции" /> : (
+      {loading ? <Spinner /> : requests.length === 0 ? <Empty text={emptyText} /> : (
         <div className="space-y-2">
-          {requests.map((r) => <RequestCard key={r.id} r={r} icon="GraduationCap" />)}
+          {requests.map((r) => (
+            <RequestCard
+              key={r.id}
+              r={r}
+              icon={icon}
+              highlight={r.id === highlightRequestId}
+            />
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LECTURES
+// ═══════════════════════════════════════════════════════════════════════════════
+export function Lectures({ authUser, highlightRequestId }: { authUser: User; highlightRequestId?: number }) {
+  return (
+    <RequestSection
+      authUser={authUser}
+      type="lecture"
+      icon="GraduationCap"
+      title="Лекции"
+      sub="Запросы на прохождение лекций"
+      subjectOptions={[
+        "Прослушать вступительную лекцию",
+        "Лекция ФЗ о ФСВНГ и Внутреннему Уставу",
+        "Лекция УК, ПК и КоАП",
+        "Лекция о допуске к закрытой территории",
+      ]}
+      newLabel="Новый запрос"
+      emptyText="Нет запросов на лекции"
+      highlightRequestId={highlightRequestId}
+    />
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRACTICES
 // ═══════════════════════════════════════════════════════════════════════════════
-export function Practices() {
-  const [requests, setRequests] = useState<TrainingRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const all = await fetchRequests().catch(() => []);
-    setRequests(all.filter((r) => r.type === "practice"));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
+export function Practices({ authUser, highlightRequestId }: { authUser: User; highlightRequestId?: number }) {
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex items-center justify-between">
-        <SectionHeader title="Практики" sub="Запросы на прохождение практических занятий" />
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <Icon name="Plus" size={14} />Новый запрос
-        </button>
-      </div>
-      {showForm && (
-        <RequestForm
-          type="practice"
-          subjectOptions={[
-            "Отработка Штраф Задержание Ареста на инструкторе",
-            "Огневая подготовка",
-            "Физическая подготовка",
-            "Строевая подготовка",
-            "Присяга",
-          ]}
-          onSubmit={() => { setShowForm(false); load(); }}
-          onClose={() => setShowForm(false)}
-        />
-      )}
-      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет запросов на практику" /> : (
-        <div className="space-y-2">
-          {requests.map((r) => <RequestCard key={r.id} r={r} icon="Wrench" />)}
-        </div>
-      )}
-    </div>
+    <RequestSection
+      authUser={authUser}
+      type="practice"
+      icon="Wrench"
+      title="Практики"
+      sub="Запросы на прохождение практических занятий"
+      subjectOptions={[
+        "Отработка Штраф Задержание Ареста на инструкторе",
+        "Огневая подготовка",
+        "Физическая подготовка",
+        "Строевая подготовка",
+        "Присяга",
+      ]}
+      newLabel="Новый запрос"
+      emptyText="Нет запросов на практику"
+      highlightRequestId={highlightRequestId}
+    />
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXAMS
 // ═══════════════════════════════════════════════════════════════════════════════
-export function Exams() {
-  const [requests, setRequests] = useState<TrainingRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const all = await fetchRequests().catch(() => []);
-    setRequests(all.filter((r) => r.type === "exam"));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
+export function Exams({ authUser, highlightRequestId }: { authUser: User; highlightRequestId?: number }) {
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex items-center justify-between">
-        <SectionHeader title="Экзамены" sub="Запросы на прохождение экзаменов" />
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <Icon name="Plus" size={14} />Записаться
-        </button>
-      </div>
-      {showForm && (
-        <RequestForm
-          type="exam"
-          subjectOptions={[
-            "Экзамен теоретические тесты — Устав ФСВНГ — ФЗ о ФСВНГ",
-            "Экзамен процедуры практики — Штраф — Задержание — Арест",
-            "Экзамен теоретические тесты — Штраф — Задержание — Арест",
-          ]}
-          onSubmit={() => { setShowForm(false); load(); }}
-          onClose={() => setShowForm(false)}
-        />
-      )}
-      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет запросов на экзамены" /> : (
-        <div className="space-y-2">
-          {requests.map((r) => <RequestCard key={r.id} r={r} icon="ClipboardList" />)}
-        </div>
-      )}
-    </div>
+    <RequestSection
+      authUser={authUser}
+      type="exam"
+      icon="ClipboardList"
+      title="Экзамены"
+      sub="Запросы на прохождение экзаменов"
+      subjectOptions={[
+        "Экзамен теоретические тесты — Устав ФСВНГ — ФЗ о ФСВНГ",
+        "Экзамен процедуры практики — Штраф — Задержание — Арест",
+        "Экзамен теоретические тесты — Штраф — Задержание — Арест",
+      ]}
+      newLabel="Записаться"
+      emptyText="Нет запросов на экзамены"
+      highlightRequestId={highlightRequestId}
+    />
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
-export function Reports() {
-  const [requests, setRequests] = useState<TrainingRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const all = await fetchRequests().catch(() => []);
-    setRequests(all.filter((r) => r.type === "report"));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
+export function Reports({ authUser, highlightRequestId }: { authUser: User; highlightRequestId?: number }) {
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex items-center justify-between">
-        <SectionHeader title="Рапорты" sub="Подача служебных рапортов и заявлений" />
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-primary text-primary-foreground font-oswald text-sm tracking-widest uppercase py-2 px-4 hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <Icon name="Plus" size={14} />Новый рапорт
-        </button>
-      </div>
-      {showForm && (
-        <RequestForm
-          type="report"
-          subjectOptions={[
-            "Рапорт на повышение в звании",
-            "Запрос дополнительного обучения",
-            "Рапорт о прохождении практики",
-            "Иное обращение",
-          ]}
-          onSubmit={() => { setShowForm(false); load(); }}
-          onClose={() => setShowForm(false)}
-        />
-      )}
-      {loading ? <Spinner /> : requests.length === 0 ? <Empty text="Нет рапортов" /> : (
-        <div className="space-y-2">
-          {requests.map((r) => <RequestCard key={r.id} r={r} icon="FileText" />)}
-        </div>
-      )}
-    </div>
+    <RequestSection
+      authUser={authUser}
+      type="report"
+      icon="FileText"
+      title="Рапорты"
+      sub="Подача служебных рапортов и заявлений"
+      subjectOptions={[
+        "Рапорт на повышение в звании",
+        "Запрос дополнительного обучения",
+        "Рапорт о прохождении практики",
+        "Иное обращение",
+      ]}
+      newLabel="Новый рапорт"
+      emptyText="Нет рапортов"
+      highlightRequestId={highlightRequestId}
+    />
   );
 }
 
@@ -675,8 +693,8 @@ export function Profile({ authUser }: { authUser: User }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 type EditForm = { name: string; rank: string; unit: string; role: "cadet" | "instructor"; password: string };
 
-export function InstructorPanel({ authUser }: { authUser: User }) {
-  const [activeTab, setActiveTab] = useState<"requests" | "grades" | "cadets" | "whitelist">("requests");
+export function InstructorPanel({ authUser, highlightRequestId }: { authUser: User; highlightRequestId?: number }) {
+  const [activeTab, setActiveTab] = useState<"requests" | "grades" | "cadets" | "whitelist" | "rating">("requests");
 
   // --- Requests tab ---
   const [requests, setRequests] = useState<TrainingRequest[]>([]);
@@ -845,6 +863,7 @@ export function InstructorPanel({ authUser }: { authUser: User }) {
           { id: "grades", label: "Оценки" },
           { id: "cadets", label: "Курсанты" },
           { id: "whitelist", label: "Вайтлист" },
+          { id: "rating", label: "Мой рейтинг" },
         ] as const).map((tab) => (
           <button
             key={tab.id}
@@ -888,7 +907,7 @@ export function InstructorPanel({ authUser }: { authUser: User }) {
           {reqLoading ? <Spinner /> : filteredRequests.length === 0 ? <Empty text="Нет запросов" /> : (
             <div className="space-y-3">
               {filteredRequests.map((r) => (
-                <div key={r.id} className="bg-tactical-card border border-tactical-border p-4 space-y-3 hover:border-primary/30 transition-colors">
+                <div key={r.id} className={`bg-tactical-card border p-4 space-y-3 transition-colors ${r.id === highlightRequestId ? "border-primary" : "border-tactical-border hover:border-primary/30"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1235,6 +1254,222 @@ export function InstructorPanel({ authUser }: { authUser: User }) {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── RATING TAB ── */}
+      {activeTab === "rating" && (
+        <InstructorRatingView instructorId={authUser.id} />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INSTRUCTOR RATING VIEW (для вкладки инструктора)
+// ═══════════════════════════════════════════════════════════════════════════════
+function InstructorRatingView({ instructorId }: { instructorId: number }) {
+  const [data, setData] = useState<{ instructors: InstructorRating[]; my_ratings: Record<number, { rating: number; comment: string | null }> } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRatings().then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const me = data?.instructors.find((i) => i.id === instructorId);
+
+  const renderStars = (rating: number | null) => {
+    const val = rating ?? 0;
+    return (
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <Icon key={s} name="Star" size={14} className={s <= Math.round(val) ? "text-yellow-400" : "text-muted-foreground/30"} />
+        ))}
+      </div>
+    );
+  };
+
+  if (loading) return <Spinner />;
+  if (!me) return <Empty text="Данные рейтинга не найдены" />;
+
+  return (
+    <div className="animate-fade-in space-y-4">
+      <div className="bg-tactical-card border border-primary/30 p-6 flex flex-col md:flex-row items-center gap-6">
+        <div className="flex flex-col items-center">
+          <div className="w-16 h-16 bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-2">
+            <Icon name="Shield" size={28} className="text-primary" />
+          </div>
+          <p className="font-oswald text-base text-foreground tracking-wide">{me.rank} {me.name}</p>
+        </div>
+        <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="bg-tactical-panel border border-tactical-border p-3 text-center">
+            <p className="font-oswald text-3xl text-yellow-400">{me.avg_rating?.toFixed(1) ?? "—"}</p>
+            <p className="rank-badge text-muted-foreground mt-1">Средний балл</p>
+            {me.avg_rating && <div className="flex justify-center mt-1">{renderStars(me.avg_rating)}</div>}
+          </div>
+          <div className="bg-tactical-panel border border-tactical-border p-3 text-center">
+            <p className="font-oswald text-3xl text-primary">{me.rating_count}</p>
+            <p className="rank-badge text-muted-foreground mt-1">Оценок получено</p>
+          </div>
+          <div className="bg-tactical-panel border border-tactical-border p-3 text-center">
+            <p className="font-oswald text-3xl text-green-400">
+              #{(data?.instructors.findIndex((i) => i.id === instructorId) ?? 0) + 1}
+            </p>
+            <p className="rank-badge text-muted-foreground mt-1">Место в рейтинге</p>
+          </div>
+        </div>
+      </div>
+
+      <h3 className="font-oswald text-sm tracking-widest uppercase text-muted-foreground">Рейтинг всех инструкторов</h3>
+      <div className="bg-tactical-card border border-tactical-border overflow-x-auto">
+        <table className="w-full min-w-[400px]">
+          <thead>
+            <tr className="border-b border-tactical-border bg-tactical-panel">
+              <th className="text-center px-3 py-3 rank-badge text-muted-foreground w-10">#</th>
+              <th className="text-left px-4 py-3 rank-badge text-muted-foreground">Инструктор</th>
+              <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Рейтинг</th>
+              <th className="text-center px-4 py-3 rank-badge text-muted-foreground">Оценок</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.instructors.map((inst, idx) => (
+              <tr key={inst.id} className={`border-b border-tactical-border last:border-0 transition-colors ${inst.id === instructorId ? "bg-primary/10" : "hover:bg-primary/5"}`}>
+                <td className="px-3 py-3 text-center font-oswald text-sm text-muted-foreground">{idx + 1}</td>
+                <td className="px-4 py-3">
+                  <p className="text-sm font-ibm text-foreground">{inst.rank} {inst.name}</p>
+                  {inst.unit && <p className="text-xs text-muted-foreground font-mono">{inst.unit}</p>}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {inst.avg_rating ? (
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className="font-oswald text-yellow-400">{inst.avg_rating.toFixed(1)}</span>
+                      {renderStars(inst.avg_rating)}
+                    </div>
+                  ) : <span className="text-muted-foreground text-xs">—</span>}
+                </td>
+                <td className="px-4 py-3 text-center text-sm font-mono text-muted-foreground">{inst.rating_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INSTRUCTOR RATINGS (для курсантов)
+// ═══════════════════════════════════════════════════════════════════════════════
+export function InstructorRatings() {
+  const [data, setData] = useState<{ instructors: InstructorRating[]; my_ratings: Record<number, { rating: number; comment: string | null }> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Record<number, number>>({});
+  const [comments, setComments] = useState<Record<number, string>>({});
+  const [success, setSuccess] = useState<number | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const d = await fetchRatings().catch(() => null);
+    setData(d);
+    if (d) {
+      const init: Record<number, number> = {};
+      Object.entries(d.my_ratings).forEach(([k, v]) => { init[Number(k)] = v.rating; });
+      setSelected(init);
+      const initC: Record<number, string> = {};
+      Object.entries(d.my_ratings).forEach(([k, v]) => { initC[Number(k)] = v.comment ?? ""; });
+      setComments(initC);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleRate = async (instructorId: number) => {
+    const rating = selected[instructorId];
+    if (!rating) return;
+    setSubmitting(instructorId);
+    await rateInstructor(instructorId, rating, comments[instructorId] || undefined).catch(() => {});
+    setSuccess(instructorId);
+    setTimeout(() => setSuccess(null), 2000);
+    setSubmitting(null);
+    await load();
+  };
+
+  const renderStars = (instructorId: number, currentRating: number | null) => {
+    const val = selected[instructorId] ?? 0;
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button
+            key={s}
+            onClick={() => setSelected((prev) => ({ ...prev, [instructorId]: s }))}
+            className="transition-transform hover:scale-110"
+          >
+            <Icon name="Star" size={18} className={s <= val ? "text-yellow-400" : "text-muted-foreground/30 hover:text-yellow-400/50"} />
+          </button>
+        ))}
+        {currentRating && (
+          <span className="ml-2 text-xs text-muted-foreground font-mono">ср. {currentRating.toFixed(1)}</span>
+        )}
+      </div>
+    );
+  };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="animate-fade-in space-y-6">
+      <SectionHeader title="Оценка инструкторов" sub="Поставь оценку своим инструкторам" />
+      {!data || data.instructors.length === 0 ? (
+        <Empty text="Инструкторов не найдено" />
+      ) : (
+        <div className="space-y-3">
+          {data.instructors.map((inst) => {
+            const myRating = data.my_ratings[inst.id];
+            return (
+              <div key={inst.id} className="bg-tactical-card border border-tactical-border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                      <Icon name="Shield" size={16} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-ibm text-sm font-semibold text-foreground">{inst.rank} {inst.name}</p>
+                      {inst.unit && <p className="text-xs text-muted-foreground font-mono">{inst.unit}</p>}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-oswald text-xl text-yellow-400">{inst.avg_rating?.toFixed(1) ?? "—"}</p>
+                    <p className="rank-badge text-muted-foreground">{inst.rating_count} оценок</p>
+                  </div>
+                </div>
+                <div className="border-t border-tactical-border pt-3 space-y-2">
+                  <p className="rank-badge text-muted-foreground">{myRating ? "Ваша оценка:" : "Оценить:"}</p>
+                  {renderStars(inst.id, inst.avg_rating)}
+                  <input
+                    className="w-full bg-tactical-panel border border-tactical-border px-3 py-1.5 text-xs text-foreground font-ibm focus:outline-none focus:border-primary transition-colors"
+                    placeholder="Комментарий (необязательно)..."
+                    value={comments[inst.id] ?? ""}
+                    onChange={(e) => setComments((prev) => ({ ...prev, [inst.id]: e.target.value }))}
+                  />
+                  <button
+                    disabled={!selected[inst.id] || submitting === inst.id}
+                    onClick={() => handleRate(inst.id)}
+                    className="bg-primary text-primary-foreground font-oswald text-xs tracking-widest uppercase py-1.5 px-4 hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {submitting === inst.id ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Send" size={12} />}
+                    {myRating ? "Обновить оценку" : "Отправить оценку"}
+                  </button>
+                  {success === inst.id && (
+                    <p className="text-xs text-green-400 font-mono flex items-center gap-1">
+                      <Icon name="Check" size={12} />Оценка сохранена
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

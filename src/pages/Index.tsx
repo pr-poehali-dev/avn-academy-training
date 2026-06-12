@@ -11,6 +11,7 @@ import {
   Grades,
   Profile,
   InstructorPanel,
+  InstructorRatings,
 } from "@/components/academy/Sections";
 import { User } from "@/lib/api";
 
@@ -24,20 +25,27 @@ export default function Index({ authUser, onLogout }: IndexProps) {
     authUser.role === "instructor" ? "instructor" : "dashboard"
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [highlightRequestId, setHighlightRequestId] = useState<number | undefined>();
 
   const role = authUser.role as UserRole;
 
+  const navigateTo = (s: Section, requestId?: number) => {
+    setSection(s);
+    setHighlightRequestId(requestId);
+  };
+
   const renderSection = () => {
     switch (section) {
-      case "dashboard": return <Dashboard authUser={authUser} />;
+      case "dashboard": return <Dashboard authUser={authUser} onNavigate={navigateTo} />;
       case "materials": return <Materials />;
-      case "lectures": return <Lectures />;
-      case "practices": return <Practices />;
-      case "exams": return <Exams />;
-      case "reports": return <Reports />;
+      case "lectures": return <Lectures authUser={authUser} highlightRequestId={highlightRequestId} />;
+      case "practices": return <Practices authUser={authUser} highlightRequestId={highlightRequestId} />;
+      case "exams": return <Exams authUser={authUser} highlightRequestId={highlightRequestId} />;
+      case "reports": return <Reports authUser={authUser} highlightRequestId={highlightRequestId} />;
       case "grades": return <Grades authUser={authUser} />;
       case "profile": return <Profile authUser={authUser} />;
-      case "instructor": return <InstructorPanel authUser={authUser} />;
+      case "ratings": return <InstructorRatings />;
+      case "instructor": return <InstructorPanel authUser={authUser} highlightRequestId={highlightRequestId} />;
     }
   };
 
@@ -49,6 +57,7 @@ export default function Index({ authUser, onLogout }: IndexProps) {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onLogout={onLogout}
+        onNavigate={navigateTo}
       />
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar

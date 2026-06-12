@@ -7,7 +7,8 @@ export type Section =
   | "reports"
   | "grades"
   | "profile"
-  | "instructor";
+  | "instructor"
+  | "ratings";
 
 export type UserRole = "cadet" | "instructor";
 
@@ -60,6 +61,7 @@ export const NAV_ITEMS: {
     roles: ["cadet", "instructor"],
   },
   { id: "profile", label: "Профиль курсанта", icon: "User", roles: ["cadet"] },
+  { id: "ratings", label: "Рейтинг инструкторов", icon: "Star", roles: ["cadet"] },
   {
     id: "instructor",
     label: "Панель инструктора",
