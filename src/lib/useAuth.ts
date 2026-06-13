@@ -6,10 +6,10 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiMe().then((u) => {
-      setUser(u);
-      setLoading(false);
-    });
+    apiMe()
+      .then((u) => setUser(u))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const login = (u: User) => setUser(u);
