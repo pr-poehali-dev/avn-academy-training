@@ -1,4 +1,5 @@
 """Авторизация: вход, выход, проверка сессии. Action передаётся в query: ?action=login|logout|me"""
+# redeploy
 import json
 import os
 import hashlib

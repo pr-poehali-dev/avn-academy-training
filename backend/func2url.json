@@ -1,7 +1,3 @@
 {
-  "ratings": "https://functions.poehali.dev/65d99839-db00-4a29-9512-4221d25f1d62",
-  "notifications": "https://functions.poehali.dev/ba6ad873-843b-4935-b62f-12d751f7675f",
-  "requests": "https://functions.poehali.dev/737b0f42-c3de-4eb2-b632-1a02ff20f43c",
-  "admin-users": "https://functions.poehali.dev/11facde9-3268-42cd-b599-f4eb9ff2ad36",
   "auth": "https://functions.poehali.dev/eef502e8-b5b4-49f1-9aca-68ce6729a515"
 }
