@@ -127,7 +127,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent mt-6" />
         </div>
 
-        <p className="text-center rank-badge text-muted-foreground mt-4">
+        <p className="text-center rank-badge text-muted-foreground mt-4 text-xl font-extrabold">
           Нет доступа — обратитесь к инструктору
         </p>
       </div>
